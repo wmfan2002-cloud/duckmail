@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import Link from "next/link"
 import { AlertCircle, CheckCircle2, DownloadCloud, Loader2, Power, PowerOff, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
@@ -226,6 +227,9 @@ export default function ArchiveMailboxPage() {
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/archive/search">检索与日志</Link>
+              </Button>
               <Button onClick={() => void loadMailboxes()} disabled={listLoading} variant="outline">
                 {listLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
                 刷新列表

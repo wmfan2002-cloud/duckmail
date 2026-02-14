@@ -104,6 +104,7 @@ pnpm archive:test-login-self-test
 ### 邮箱管理 API（归档）
 
 - 前端管理页：`/archive`（表格、导入弹窗、错误回显、启停操作）
+- 检索与日志页：`/archive/search`（检索、详情、删除反馈、同步日志）
 - `POST /api/archive/mailboxes`：单条新增/更新邮箱（自动加密 `password_enc`）
 - `GET /api/archive/mailboxes`：列表查询；支持 `email` 精确查询
 - `PATCH /api/archive/mailboxes/:id`：启停邮箱（`isActive`）
@@ -116,6 +117,7 @@ pnpm archive:test-login-self-test
 - `POST /api/archive/sync/dispatch`：挑选 due 邮箱写入 `sync_runs(status=queued)`
 - `POST /api/archive/sync/background`：消费 queued 任务并调用 worker（重任务路径）
 - `POST /api/archive/sync/scheduled`：串联 `dispatch -> background`（可由外部 cron 每 10 分钟触发）
+- `GET /api/archive/sync/runs`：读取最近同步 run 与错误事件
 - 同步流程：`token -> messages list -> message detail -> upsert`
 - 失败策略：每一步最多 3 次指数退避重试，失败写入 `sync_events`
 - 限流策略：`ARCHIVE_SYNC_QPS` 最大 6；`ARCHIVE_SYNC_CONCURRENCY` 3~4

@@ -276,6 +276,49 @@ export async function upsertSyncMessage(mailboxId: number, message: UpsertMessag
   return row
 }
 
+export async function listRecentSyncRuns(limit = 20) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  return db
+    .select({
+      id: syncRuns.id,
+      mailboxId: syncRuns.mailboxId,
+      mailboxEmail: mailboxes.email,
+      triggerType: syncRuns.triggerType,
+      status: syncRuns.status,
+      errorMessage: syncRuns.errorMessage,
+      startedAt: syncRuns.startedAt,
+      finishedAt: syncRuns.finishedAt,
+      createdAt: syncRuns.createdAt,
+      stats: syncRuns.stats,
+    })
+    .from(syncRuns)
+    .innerJoin(mailboxes, eq(syncRuns.mailboxId, mailboxes.id))
+    .orderBy(desc(syncRuns.createdAt))
+    .limit(Math.max(1, Math.min(200, limit)))
+}
+
+export async function listRecentSyncErrors(limit = 50) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  return db
+    .select({
+      id: syncEvents.id,
+      runId: syncEvents.runId,
+      mailboxId: syncEvents.mailboxId,
+      mailboxEmail: mailboxes.email,
+      code: syncEvents.code,
+      message: syncEvents.message,
+      createdAt: syncEvents.createdAt,
+      payload: syncEvents.payload,
+    })
+    .from(syncEvents)
+    .innerJoin(mailboxes, eq(syncEvents.mailboxId, mailboxes.id))
+    .where(eq(syncEvents.level, "error"))
+    .orderBy(desc(syncEvents.createdAt))
+    .limit(Math.max(1, Math.min(200, limit)))
+}
+
 export async function updateMailboxLastSyncAt(mailboxId: number, value = new Date()) {
   assertArchiveRuntimeReady()
   const db = getArchiveDb()
