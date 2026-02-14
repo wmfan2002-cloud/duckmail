@@ -103,6 +103,7 @@ pnpm archive:test-login-self-test
 
 ### 邮箱管理 API（归档）
 
+- 前端管理页：`/archive`（表格、导入弹窗、错误回显、启停操作）
 - `POST /api/archive/mailboxes`：单条新增/更新邮箱（自动加密 `password_enc`）
 - `GET /api/archive/mailboxes`：列表查询；支持 `email` 精确查询
 - `PATCH /api/archive/mailboxes/:id`：启停邮箱（`isActive`）
