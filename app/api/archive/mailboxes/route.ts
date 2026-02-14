@@ -6,7 +6,7 @@ export const runtime = "nodejs"
 
 function errorResponse(error: unknown, status = 500) {
   const message = error instanceof Error ? error.message : "archive mailbox request failed"
-  return NextResponse.json({ error: message }, { status })
+  return NextResponse.json({ code: "INTERNAL_ERROR", error: message }, { status })
 }
 
 function canRevealCredential(request: NextRequest) {
@@ -25,7 +25,10 @@ export async function GET(request: NextRequest) {
 
   if (revealCredential && !canRevealCredential(request)) {
     return NextResponse.json(
-      { error: "revealCredential requires valid x-archive-debug-token" },
+      {
+        code: "FORBIDDEN_REVEAL",
+        error: "revealCredential requires valid x-archive-debug-token",
+      },
       { status: 403 },
     )
   }
@@ -34,13 +37,13 @@ export async function GET(request: NextRequest) {
     if (email) {
       const mailbox = await getMailboxByEmail(email, { revealCredential })
       if (!mailbox) {
-        return NextResponse.json({ error: "mailbox not found" }, { status: 404 })
+        return NextResponse.json({ code: "MAILBOX_NOT_FOUND", error: "mailbox not found" }, { status: 404 })
       }
-      return NextResponse.json({ data: mailbox })
+      return NextResponse.json({ code: "OK", data: mailbox })
     }
 
     const rows = await listMailboxes({ revealCredential })
-    return NextResponse.json({ data: rows })
+    return NextResponse.json({ code: "OK", data: rows })
   } catch (error) {
     return errorResponse(error)
   }
@@ -51,11 +54,14 @@ export async function POST(request: NextRequest) {
   try {
     payload = await request.json()
   } catch {
-    return NextResponse.json({ error: "invalid JSON payload" }, { status: 400 })
+    return NextResponse.json({ code: "INVALID_JSON", error: "invalid JSON payload" }, { status: 400 })
   }
 
   if (!payload.email || !payload.password) {
-    return NextResponse.json({ error: "email and password are required" }, { status: 400 })
+    return NextResponse.json(
+      { code: "INVALID_INPUT", error: "email and password are required" },
+      { status: 400 },
+    )
   }
 
   try {
@@ -66,6 +72,7 @@ export async function POST(request: NextRequest) {
     })
 
     return NextResponse.json({
+      code: "OK",
       data: {
         id: row.id,
         email: row.email,

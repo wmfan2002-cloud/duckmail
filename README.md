@@ -97,7 +97,17 @@ pnpm db:migrate -- --plan
 ```bash
 ARCHIVE_MASTER_KEY=01234567890123456789012345678901 DATABASE_URL=postgres://demo/demo pnpm archive:check-config
 ARCHIVE_MASTER_KEY=01234567890123456789012345678901 pnpm archive:crypto-self-test
+pnpm archive:import-parser-self-test
+pnpm archive:test-login-self-test
 ```
+
+### 邮箱管理 API（归档）
+
+- `POST /api/archive/mailboxes`：单条新增/更新邮箱（自动加密 `password_enc`）
+- `GET /api/archive/mailboxes`：列表查询；支持 `email` 精确查询
+- `PATCH /api/archive/mailboxes/:id`：启停邮箱（`isActive`）
+- `POST /api/archive/mailboxes/import`：批量导入（`format=csv|text`，返回逐行 `line/status/reason`）
+- `POST /api/archive/mailboxes/test-login`：凭据探测，返回稳定错误码（如 `INVALID_CREDENTIALS`）
 
 ### API Key 功能（可选）
 

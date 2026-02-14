@@ -70,6 +70,28 @@ export async function upsertMailboxCredential(input: UpsertMailboxInput) {
   }
 }
 
+export async function setMailboxActive(mailboxId: number, isActive: boolean) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const now = new Date()
+  const [row] = await db
+    .update(mailboxes)
+    .set({
+      isActive,
+      updatedAt: now,
+    })
+    .where(eq(mailboxes.id, mailboxId))
+    .returning({
+      id: mailboxes.id,
+      email: mailboxes.email,
+      provider: mailboxes.provider,
+      isActive: mailboxes.isActive,
+      updatedAt: mailboxes.updatedAt,
+    })
+
+  return row ?? null
+}
+
 export async function listMailboxes(options: RevealMailboxOptions = {}) {
   assertArchiveRuntimeReady()
   const db = getArchiveDb()
@@ -91,6 +113,34 @@ export async function listMailboxes(options: RevealMailboxOptions = {}) {
     credential: options.revealCredential ? decryptCredential(row.passwordEnc) : undefined,
     passwordEncPreview: redactCredential(row.passwordEnc),
   }))
+}
+
+export async function getMailboxById(mailboxId: number, options: RevealMailboxOptions = {}) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const [row] = await db
+    .select({
+      id: mailboxes.id,
+      email: mailboxes.email,
+      provider: mailboxes.provider,
+      isActive: mailboxes.isActive,
+      passwordEnc: mailboxes.passwordEnc,
+      updatedAt: mailboxes.updatedAt,
+      createdAt: mailboxes.createdAt,
+    })
+    .from(mailboxes)
+    .where(eq(mailboxes.id, mailboxId))
+    .limit(1)
+
+  if (!row) {
+    return null
+  }
+
+  return {
+    ...row,
+    credential: options.revealCredential ? decryptCredential(row.passwordEnc) : undefined,
+    passwordEncPreview: redactCredential(row.passwordEnc),
+  }
 }
 
 export async function getMailboxByEmail(email: string, options: RevealMailboxOptions = {}) {
