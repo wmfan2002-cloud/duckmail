@@ -88,6 +88,17 @@ pnpm db:migrate -- --plan
 
 迁移文件位于 `db/migrations`，采用 `.up.sql / .down.sql` 成对维护，确保可重复执行与失败回滚。
 
+### 凭据加密与配置校验
+
+- `mailboxes.password_enc` 使用 `AES-256-GCM`（`lib/archive/crypto.ts`）进行加密存储；
+- 启动配置会校验 `ARCHIVE_MASTER_KEY`（>=32 字节）与 `DATABASE_URL`；
+- 受控解密仅在 `GET /api/archive/mailboxes?revealCredential=1` 且请求头带 `x-archive-debug-token` 时开放。
+
+```bash
+ARCHIVE_MASTER_KEY=01234567890123456789012345678901 DATABASE_URL=postgres://demo/demo pnpm archive:check-config
+ARCHIVE_MASTER_KEY=01234567890123456789012345678901 pnpm archive:crypto-self-test
+```
+
 ### API Key 功能（可选）
 
 应用支持可选的 API Key 配置，提供增强功能：

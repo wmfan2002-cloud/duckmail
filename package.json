@@ -12,7 +12,9 @@
     "lint": "next lint",
     "db:migrate": "tsx scripts/db/migrate.ts",
     "db:rollback": "tsx scripts/db/rollback.ts",
-    "db:smoke": "tsx scripts/db/smoke.ts"
+    "db:smoke": "tsx scripts/db/smoke.ts",
+    "archive:check-config": "tsx scripts/archive/check-config.ts",
+    "archive:crypto-self-test": "tsx scripts/archive/crypto-self-test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",
