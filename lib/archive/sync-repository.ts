@@ -1,4 +1,4 @@
-import { and, desc, eq, inArray } from "drizzle-orm"
+import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm"
 
 import { mailboxes, messages, syncEvents, syncRuns } from "@/db/schema"
 import { decryptCredential } from "@/lib/archive/crypto"
@@ -15,6 +15,8 @@ type SyncMailbox = {
 type CreateSyncRunInput = {
   mailboxId: number
   triggerType: string
+  status?: string
+  startedAt?: Date | null
 }
 
 type FinishSyncRunInput = {
@@ -22,6 +24,12 @@ type FinishSyncRunInput = {
   runId: number
   stats?: Record<string, unknown>
   status: "success" | "failed"
+}
+
+type QueueRun = {
+  id: number
+  mailboxId: number
+  triggerType: string
 }
 
 type SyncEventInput = {
@@ -81,8 +89,8 @@ export async function createSyncRun(input: CreateSyncRunInput) {
     .values({
       mailboxId: input.mailboxId,
       triggerType: input.triggerType,
-      status: "running",
-      startedAt: new Date(),
+      status: input.status || "running",
+      startedAt: input.startedAt === undefined ? new Date() : input.startedAt,
       createdAt: new Date(),
     })
     .returning({
@@ -91,6 +99,108 @@ export async function createSyncRun(input: CreateSyncRunInput) {
     })
 
   return row
+}
+
+export async function listDueMailboxIds(options: { dueMinutes?: number; limit?: number } = {}) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const dueMinutes = options.dueMinutes || 10
+  const dueBefore = new Date(Date.now() - dueMinutes * 60 * 1000)
+  const filter = and(
+    eq(mailboxes.isActive, true),
+    or(isNull(mailboxes.lastSyncAt), lt(mailboxes.lastSyncAt, dueBefore)),
+  )
+  const query = db
+    .select({
+      id: mailboxes.id,
+    })
+    .from(mailboxes)
+    .where(filter)
+    .orderBy(desc(mailboxes.updatedAt))
+
+  const rows = options.limit && options.limit > 0 ? await query.limit(options.limit) : await query
+  return rows.map((row) => row.id)
+}
+
+export async function enqueueSyncRuns(mailboxIds: number[], triggerType: string) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const queued: QueueRun[] = []
+  for (const mailboxId of mailboxIds) {
+    const [row] = await db
+      .insert(syncRuns)
+      .values({
+        mailboxId,
+        triggerType,
+        status: "queued",
+        startedAt: null,
+        finishedAt: null,
+        createdAt: new Date(),
+      })
+      .returning({
+        id: syncRuns.id,
+        mailboxId: syncRuns.mailboxId,
+        triggerType: syncRuns.triggerType,
+      })
+    queued.push(row)
+  }
+  return queued
+}
+
+export async function claimQueuedRuns(limit = 20) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const queuedRows = await db
+    .select({
+      id: syncRuns.id,
+      mailboxId: syncRuns.mailboxId,
+      triggerType: syncRuns.triggerType,
+    })
+    .from(syncRuns)
+    .where(eq(syncRuns.status, "queued"))
+    .orderBy(desc(syncRuns.createdAt))
+    .limit(limit)
+
+  const claimed: QueueRun[] = []
+  for (const row of queuedRows) {
+    const [updated] = await db
+      .update(syncRuns)
+      .set({
+        status: "dispatching",
+        startedAt: new Date(),
+      })
+      .where(and(eq(syncRuns.id, row.id), eq(syncRuns.status, "queued")))
+      .returning({
+        id: syncRuns.id,
+        mailboxId: syncRuns.mailboxId,
+        triggerType: syncRuns.triggerType,
+      })
+    if (updated) {
+      claimed.push(updated)
+    }
+  }
+  return claimed
+}
+
+export async function completeQueuedRun(input: {
+  errorMessage?: string
+  queueRunId: number
+  stats?: Record<string, unknown>
+  status: "completed" | "failed"
+}) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const [row] = await db
+    .update(syncRuns)
+    .set({
+      status: input.status,
+      finishedAt: new Date(),
+      errorMessage: input.errorMessage || null,
+      stats: input.stats || null,
+    })
+    .where(eq(syncRuns.id, input.queueRunId))
+    .returning({ id: syncRuns.id, status: syncRuns.status })
+  return row ?? null
 }
 
 export async function finishSyncRun(input: FinishSyncRunInput) {

@@ -1,8 +1,12 @@
 import { mailTmCreateToken, mailTmGetMessageDetail, mailTmListMessages } from "@/lib/archive/mailtm-client"
 import {
   appendSyncEvent,
+  claimQueuedRuns,
+  completeQueuedRun,
   createSyncRun,
+  enqueueSyncRuns,
   finishSyncRun,
+  listDueMailboxIds,
   listSyncMailboxes,
   updateMailboxLastSyncAt,
   upsertSyncMessage,
@@ -31,6 +35,19 @@ type SyncSummary = {
   succeeded: number
   failed: number
   results: SyncMailboxResult[]
+}
+
+type DispatchSummary = {
+  dueMailboxCount: number
+  queuedCount: number
+  queuedRunIds: number[]
+}
+
+type BackgroundSummary = {
+  processed: number
+  succeeded: number
+  failed: number
+  queueRunIds: number[]
 }
 
 function sleep(ms: number) {
@@ -337,4 +354,89 @@ export async function runMailboxSync(options: SyncOptions = {}): Promise<SyncSum
     failed,
     results,
   }
+}
+
+export async function dispatchDueSyncRuns(options: { dueMinutes?: number; maxQueue?: number } = {}) {
+  const maxQueue = clampInt(Number(options.maxQueue || 30), 1, 200)
+  const dueMailboxIds = await listDueMailboxIds({
+    dueMinutes: options.dueMinutes || 10,
+    limit: maxQueue,
+  })
+  if (dueMailboxIds.length === 0) {
+    return {
+      dueMailboxCount: 0,
+      queuedCount: 0,
+      queuedRunIds: [],
+    } satisfies DispatchSummary
+  }
+
+  const queued = await enqueueSyncRuns(dueMailboxIds, "schedule")
+  return {
+    dueMailboxCount: dueMailboxIds.length,
+    queuedCount: queued.length,
+    queuedRunIds: queued.map((item) => item.id),
+  } satisfies DispatchSummary
+}
+
+export async function processQueuedSyncRuns(options: { limit?: number } = {}) {
+  const limit = clampInt(Number(options.limit || 20), 1, 200)
+  const claimed = await claimQueuedRuns(limit)
+  if (claimed.length === 0) {
+    return {
+      processed: 0,
+      succeeded: 0,
+      failed: 0,
+      queueRunIds: [],
+    } satisfies BackgroundSummary
+  }
+
+  let succeeded = 0
+  let failed = 0
+  for (const queueRun of claimed) {
+    try {
+      const summary = await runMailboxSync({
+        mailboxIds: [queueRun.mailboxId],
+        triggerType: "background",
+      })
+      const result = summary.results[0]
+      if (result?.status === "success") {
+        succeeded += 1
+        await completeQueuedRun({
+          queueRunId: queueRun.id,
+          status: "completed",
+          stats: {
+            workerRunId: result.runId,
+            fetched: result.fetched,
+            upserted: result.upserted,
+          },
+        })
+      } else {
+        failed += 1
+        await completeQueuedRun({
+          queueRunId: queueRun.id,
+          status: "failed",
+          errorMessage: result?.errorMessage || "background sync failed",
+          stats: {
+            workerRunId: result?.runId,
+            errorCode: result?.errorCode,
+          },
+        })
+      }
+    } catch (error) {
+      failed += 1
+      const message = resolveErrorMessage(error)
+      await completeQueuedRun({
+        queueRunId: queueRun.id,
+        status: "failed",
+        errorMessage: message,
+      })
+    }
+  }
+
+  return {
+    processed: claimed.length,
+    succeeded,
+    failed,
+    queueRunIds: claimed.map((item) => item.id),
+  } satisfies BackgroundSummary
 }
