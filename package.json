@@ -16,7 +16,8 @@
     "archive:check-config": "tsx scripts/archive/check-config.ts",
     "archive:crypto-self-test": "tsx scripts/archive/crypto-self-test.ts",
     "archive:import-parser-self-test": "tsx scripts/archive/import-parser-self-test.ts",
-    "archive:test-login-self-test": "tsx scripts/archive/test-login-self-test.ts"
+    "archive:test-login-self-test": "tsx scripts/archive/test-login-self-test.ts",
+    "archive:mailtm-client-self-test": "tsx scripts/archive/mailtm-client-self-test.ts"
   },
   "dependencies": {
     "@neondatabase/serverless": "^1.0.1",

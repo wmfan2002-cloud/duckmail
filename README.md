@@ -109,6 +109,13 @@ pnpm archive:test-login-self-test
 - `POST /api/archive/mailboxes/import`：批量导入（`format=csv|text`，返回逐行 `line/status/reason`）
 - `POST /api/archive/mailboxes/test-login`：凭据探测，返回稳定错误码（如 `INVALID_CREDENTIALS`）
 
+### 同步 Worker（归档）
+
+- `POST /api/archive/sync/run`：手动触发同步（支持 `mailboxIds`、`triggerType`、`maxPages`）
+- 同步流程：`token -> messages list -> message detail -> upsert`
+- 失败策略：每一步最多 3 次指数退避重试，失败写入 `sync_events`
+- 限流策略：`ARCHIVE_SYNC_QPS` 最大 6；`ARCHIVE_SYNC_CONCURRENCY` 3~4
+
 ### API Key 功能（可选）
 
 应用支持可选的 API Key 配置，提供增强功能：
