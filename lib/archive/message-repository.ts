@@ -3,6 +3,7 @@ import {
   desc,
   eq,
   gte,
+  inArray,
   ilike,
   isNull,
   lte,
@@ -26,6 +27,12 @@ type SearchMessagesParams = {
   q?: string
   start?: Date
   subject?: string
+}
+
+type DeleteExpiredMessagesParams = {
+  cutoff: Date
+  limitPerMailbox?: number
+  mailboxId: number
 }
 
 type SearchMessageItem = {
@@ -66,6 +73,7 @@ function buildFilters(params: SearchMessagesParams) {
   const fromLike = normalizeLike(params.from)
   const subjectLike = normalizeLike(params.subject)
   const qLike = normalizeLike(params.q)
+  const qText = params.q?.trim()
 
   if (!params.includeDeleted) {
     filters.push(isNull(messages.deletedAt))
@@ -82,8 +90,9 @@ function buildFilters(params: SearchMessagesParams) {
   if (subjectLike) {
     filters.push(ilike(messages.subject, subjectLike))
   }
-  if (qLike) {
-    filters.push(or(ilike(messages.subject, qLike), ilike(messages.snippet, qLike), ilike(messages.bodyText, qLike))!)
+  if (qLike && qText) {
+    const ftsClause = sql`to_tsvector('simple', coalesce(${messages.subject}, '') || ' ' || coalesce(${messages.snippet}, '') || ' ' || coalesce(${messages.bodyText}, '')) @@ plainto_tsquery('simple', ${qText})`
+    filters.push(or(ftsClause, ilike(messages.subject, qLike), ilike(messages.snippet, qLike), ilike(messages.bodyText, qLike))!)
   }
   if (params.start) {
     filters.push(gte(messages.receivedAt, params.start))
@@ -181,4 +190,40 @@ export async function markMessageDeleted(messageId: number, deletedAt = new Date
       remoteId: messages.remoteId,
     })
   return row ?? null
+}
+
+export async function deleteExpiredMessages(params: DeleteExpiredMessagesParams) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const limit = params.limitPerMailbox
+    ? Math.max(1, Math.min(20_000, params.limitPerMailbox))
+    : 20_000
+  const candidates = await db
+    .select({ id: messages.id })
+    .from(messages)
+    .where(
+      and(
+        eq(messages.mailboxId, params.mailboxId),
+        lte(messages.receivedAt, params.cutoff),
+      ),
+    )
+    .limit(limit)
+
+  if (candidates.length === 0) {
+    return {
+      deletedCount: 0,
+      messageIds: [],
+    }
+  }
+
+  const ids = candidates.map((item) => item.id)
+  const rows = await db
+    .delete(messages)
+    .where(inArray(messages.id, ids))
+    .returning({ id: messages.id })
+
+  return {
+    deletedCount: rows.length,
+    messageIds: rows.map((row) => row.id),
+  }
 }

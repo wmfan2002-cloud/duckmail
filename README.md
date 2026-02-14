@@ -136,6 +136,17 @@ pnpm archive:test-login-self-test
 - `remote`：仅删除上游 mail.tm 消息，保留本地归档
 - `both`：优先远端删除，远端失败会降级为本地删除并返回 `DELETE_PARTIAL`
 
+### 稳定性增强（FTS / TTL / Metrics）
+
+- 迁移 `0001_stability` 增加消息 FTS GIN 索引与 TTL/运行指标相关索引
+- `POST /api/archive/maintenance/ttl`：执行或预演 TTL 清理（`dryRun`）
+- `GET /api/archive/metrics`：查询失败率、平均延迟、p95 延迟与告警标记
+
+```bash
+pnpm db:migrate -- --plan
+pnpm archive:metrics-self-test
+```
+
 ### API Key 功能（可选）
 
 应用支持可选的 API Key 配置，提供增强功能：

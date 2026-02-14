@@ -1,8 +1,9 @@
-import { and, desc, eq, inArray, isNull, lt, or } from "drizzle-orm"
+import { and, desc, eq, gte, inArray, isNull, lt, or } from "drizzle-orm"
 
 import { mailboxes, messages, syncEvents, syncRuns } from "@/db/schema"
 import { decryptCredential } from "@/lib/archive/crypto"
 import { getArchiveDb } from "@/lib/archive/db"
+import { buildSyncMetrics } from "@/lib/archive/metrics"
 import { assertArchiveRuntimeReady } from "@/lib/archive/runtime"
 
 type SyncMailbox = {
@@ -317,6 +318,43 @@ export async function listRecentSyncErrors(limit = 50) {
     .where(eq(syncEvents.level, "error"))
     .orderBy(desc(syncEvents.createdAt))
     .limit(Math.max(1, Math.min(200, limit)))
+}
+
+export async function getSyncMetrics(options: {
+  thresholdFailureRate?: number
+  thresholdP95LatencyMs?: number
+  windowHours?: number
+} = {}) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const windowHours = options.windowHours || 24
+  const thresholdFailureRate = options.thresholdFailureRate ?? 0.1
+  const thresholdP95LatencyMs = options.thresholdP95LatencyMs ?? 5000
+  const since = new Date(Date.now() - windowHours * 60 * 60 * 1000)
+
+  const rows = await db
+    .select({
+      status: syncRuns.status,
+      startedAt: syncRuns.startedAt,
+      finishedAt: syncRuns.finishedAt,
+    })
+    .from(syncRuns)
+    .where(gte(syncRuns.createdAt, since))
+
+  const metrics = buildSyncMetrics(rows, {
+    failureRate: thresholdFailureRate,
+    p95LatencyMs: thresholdP95LatencyMs,
+  })
+
+  return {
+    windowHours,
+    since,
+    thresholds: {
+      failureRate: thresholdFailureRate,
+      p95LatencyMs: thresholdP95LatencyMs,
+    },
+    ...metrics,
+  }
 }
 
 export async function updateMailboxLastSyncAt(mailboxId: number, value = new Date()) {
