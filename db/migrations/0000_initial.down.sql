@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS sync_events;
+DROP TABLE IF EXISTS sync_runs;
+DROP TABLE IF EXISTS messages;
+DROP TABLE IF EXISTS mailboxes;

@@ -68,6 +68,26 @@
 
 通过 https://www.duckmail.sbs/api-docs 界面来获取接口文档与调试
 
+## 🗄️ 归档数据库迁移（Neon + Drizzle）
+
+项目内置了归档库基础 schema（`mailboxes/messages/sync_runs/sync_events`）与可回滚迁移脚手架。
+
+### 环境变量
+
+- `DATABASE_URL`：Neon Postgres 连接串
+- `ARCHIVE_MASTER_KEY`：归档凭据加密主密钥（至少 32 字节）
+
+### 常用命令
+
+```bash
+pnpm db:migrate        # 执行待迁移脚本
+pnpm db:rollback       # 回滚最近 1 条迁移（可加 -- --steps=2）
+pnpm db:smoke          # 插入+查询 smoke 验证（事务内回滚）
+pnpm db:migrate -- --plan
+```
+
+迁移文件位于 `db/migrations`，采用 `.up.sql / .down.sql` 成对维护，确保可重复执行与失败回滚。
+
 ### API Key 功能（可选）
 
 应用支持可选的 API Key 配置，提供增强功能：
