@@ -122,6 +122,18 @@ pnpm archive:test-login-self-test
 
 建议在部署平台配置定时器（例如每 10 分钟）调用 `POST /api/archive/sync/scheduled`，并通过 `ARCHIVE_ADMIN_TOKEN` 保护调度入口。
 
+### 消息检索与删除 API（归档）
+
+- `GET /api/archive/messages`：支持 `mailbox/domain/from/subject/q/start/end/page/pageSize` 组合筛选
+- `GET /api/archive/messages/:id`：读取正文详情（含 `body_text/body_html`）
+- `DELETE /api/archive/messages/:id?mode=local|remote|both`：删除策略
+
+删除模式说明：
+
+- `local`：只做本地软删除（`deleted_at`）
+- `remote`：仅删除上游 mail.tm 消息，保留本地归档
+- `both`：优先远端删除，远端失败会降级为本地删除并返回 `DELETE_PARTIAL`
+
 ### API Key 功能（可选）
 
 应用支持可选的 API Key 配置，提供增强功能：

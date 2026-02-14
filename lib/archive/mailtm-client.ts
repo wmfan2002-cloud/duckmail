@@ -118,3 +118,32 @@ export async function mailTmGetMessageDetail(
     options,
   )
 }
+
+export async function mailTmDeleteMessage(token: string, messageId: string, options: RequestOptions = {}) {
+  if (options.beforeRequest) {
+    await options.beforeRequest()
+  }
+  const controller = new AbortController()
+  const timeoutId = setTimeout(() => controller.abort(), 15_000)
+  try {
+    const response = await fetch(`${getMailTmBaseUrl()}/messages/${messageId}`, {
+      method: "DELETE",
+      headers: {
+        authorization: `Bearer ${token}`,
+      },
+      signal: controller.signal,
+    })
+
+    if (response.status === 404) {
+      return { deleted: false, remoteStatus: 404 as const }
+    }
+    if (!response.ok) {
+      const error = new Error(`mail.tm delete failed with status ${response.status}`)
+      ;(error as Error & { status?: number }).status = response.status
+      throw error
+    }
+    return { deleted: true, remoteStatus: response.status }
+  } finally {
+    clearTimeout(timeoutId)
+  }
+}

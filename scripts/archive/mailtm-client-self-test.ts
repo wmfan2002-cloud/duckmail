@@ -1,8 +1,13 @@
-import { mailTmCreateToken, mailTmGetMessageDetail, mailTmListMessages } from "@/lib/archive/mailtm-client"
+import {
+  mailTmCreateToken,
+  mailTmDeleteMessage,
+  mailTmGetMessageDetail,
+  mailTmListMessages,
+} from "@/lib/archive/mailtm-client"
 
 async function main() {
   const originalFetch = global.fetch
-  global.fetch = (async (input: RequestInfo | URL) => {
+  global.fetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input)
     if (url.endsWith("/token")) {
       return new Response(JSON.stringify({ token: "token-demo" }), {
@@ -15,6 +20,9 @@ async function main() {
         status: 200,
         headers: { "content-type": "application/json" },
       })
+    }
+    if (url.includes("/messages/m1") && init?.method === "DELETE") {
+      return new Response(null, { status: 204 })
     }
     if (url.includes("/messages/m1")) {
       return new Response(
@@ -56,7 +64,14 @@ async function main() {
       throw new Error("message detail parse failed")
     }
 
-    console.log(`[archive] mailtm client self-test ok token=${token} list=${list.length} detail=${detail.id}`)
+    const deleted = await mailTmDeleteMessage(token, "m1")
+    if (!deleted.deleted || deleted.remoteStatus !== 204) {
+      throw new Error("message delete parse failed")
+    }
+
+    console.log(
+      `[archive] mailtm client self-test ok token=${token} list=${list.length} detail=${detail.id} deleted=${deleted.deleted}`,
+    )
   } finally {
     global.fetch = originalFetch
   }
