@@ -123,6 +123,17 @@ async function parseJsonOrThrow<T>(response: Response): Promise<T> {
   }
 }
 
+function buildAdminHeaders(adminToken: string) {
+  const headers: Record<string, string> = {
+    "content-type": "application/json",
+  }
+  const trimmedToken = adminToken.trim()
+  if (trimmedToken) {
+    headers["x-archive-admin-token"] = trimmedToken
+  }
+  return headers
+}
+
 export default function ArchiveSearchPage() {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_SEARCH_FILTERS)
   const [page, setPage] = useState(1)
@@ -254,9 +265,7 @@ export default function ArchiveSearchPage() {
     try {
       const response = await fetch("/api/archive/sync/scheduler-config", {
         method: "PATCH",
-        headers: {
-          "content-type": "application/json",
-        },
+        headers: buildAdminHeaders(adminToken),
         body: JSON.stringify({
           enabled: schedulerConfig.enabled,
           intervalMinutes: schedulerConfig.intervalMinutes,
@@ -264,8 +273,11 @@ export default function ArchiveSearchPage() {
           processLimit: schedulerConfig.processLimit,
         }),
       })
-      const payload = (await response.json()) as SchedulerConfigResponse
+      const payload = await parseJsonOrThrow<SchedulerConfigResponse>(response)
       if (!response.ok || payload.code !== "OK" || !payload.data) {
+        if (response.status === 403) {
+          throw new Error("invalid admin token，请检查管理员令牌是否正确")
+        }
         throw new Error(payload.error || payload.code || "定时配置保存失败")
       }
       setSchedulerConfig(payload.data)
@@ -283,17 +295,9 @@ export default function ArchiveSearchPage() {
     setSchedulerError("")
     setSchedulerNotice("")
     try {
-      const headers: Record<string, string> = {
-        "content-type": "application/json",
-      }
-      const trimmedToken = adminToken.trim()
-      if (trimmedToken) {
-        headers["x-archive-admin-token"] = trimmedToken
-      }
-
       const response = await fetch("/api/archive/sync/scheduled", {
         method: "POST",
-        headers,
+        headers: buildAdminHeaders(adminToken),
         body: JSON.stringify({ force: true }),
       })
       const payload = await parseJsonOrThrow<{ code?: string; error?: string }>(response)
@@ -320,9 +324,7 @@ export default function ArchiveSearchPage() {
     try {
       const response = await fetch("/api/archive/sync/run-all", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
+        headers: buildAdminHeaders(adminToken),
         body: JSON.stringify({
           processLimit: schedulerConfig.processLimit,
         }),
@@ -338,6 +340,9 @@ export default function ArchiveSearchPage() {
         error?: string
       }>(response)
       if (!response.ok || payload.code !== "OK") {
+        if (response.status === 403) {
+          throw new Error("invalid admin token，请检查管理员令牌是否正确")
+        }
         throw new Error(payload.error || payload.code || "全量同步失败")
       }
 
@@ -653,7 +658,7 @@ export default function ArchiveSearchPage() {
 
             <div className="space-y-1">
               <label className="text-xs text-gray-600 dark:text-gray-300">
-                管理员令牌（用于“立即执行”）
+                管理员令牌（用于“立即执行/全部邮箱/保存设置”）
               </label>
               <Input
                 type="password"

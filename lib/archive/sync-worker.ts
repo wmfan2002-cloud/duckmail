@@ -5,6 +5,7 @@ import {
   completeQueuedRun,
   createSyncRun,
   enqueueSyncRuns,
+  filterRunnableMailboxIds,
   finishSyncRun,
   listDueMailboxIds,
   listSyncMailboxes,
@@ -416,7 +417,16 @@ export async function dispatchDueSyncRuns(options: { dueMinutes?: number; maxQue
     } satisfies DispatchSummary
   }
 
-  const queued = await enqueueSyncRuns(dueMailboxIds, "schedule")
+  const runnableMailboxIds = await filterRunnableMailboxIds(dueMailboxIds)
+  if (runnableMailboxIds.length === 0) {
+    return {
+      dueMailboxCount: dueMailboxIds.length,
+      queuedCount: 0,
+      queuedRunIds: [],
+    } satisfies DispatchSummary
+  }
+
+  const queued = await enqueueSyncRuns(runnableMailboxIds, "schedule")
   return {
     dueMailboxCount: dueMailboxIds.length,
     queuedCount: queued.length,

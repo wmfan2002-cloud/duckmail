@@ -55,7 +55,7 @@ async function main() {
     }
 
     const list = await mailTmListMessages(token, 1)
-    if (list.length !== 1 || list[0].id !== "m1") {
+    if (list.items.length !== 1 || list.items[0].id !== "m1" || list.hasNext !== true) {
       throw new Error("message list parse failed")
     }
 
@@ -70,7 +70,7 @@ async function main() {
     }
 
     console.log(
-      `[archive] mailtm client self-test ok token=${token} list=${list.length} detail=${detail.id} deleted=${deleted.deleted}`,
+      `[archive] mailtm client self-test ok token=${token} list=${list.items.length} detail=${detail.id} deleted=${deleted.deleted}`,
     )
   } finally {
     global.fetch = originalFetch

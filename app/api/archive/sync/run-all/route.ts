@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { checkArchiveAdminToken } from "@/lib/archive/admin-auth"
 import { ensureArchiveInternalPollerStarted } from "@/lib/archive/internal-poller"
 import { getSyncSchedulerSettings } from "@/lib/archive/scheduler-settings"
 import { enqueueSyncRuns, filterRunnableMailboxIds, listActiveMailboxIds } from "@/lib/archive/sync-repository"
@@ -33,6 +34,9 @@ function normalizeProcessLimit(raw: unknown, fallback: number) {
 
 export async function POST(request: NextRequest) {
   ensureArchiveInternalPollerStarted()
+  if (!checkArchiveAdminToken(request)) {
+    return NextResponse.json({ code: "FORBIDDEN", error: "invalid admin token" }, { status: 403 })
+  }
 
   let payload: RunAllPayload
   try {

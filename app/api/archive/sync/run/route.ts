@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { checkArchiveAdminToken } from "@/lib/archive/admin-auth"
 import { ensureArchiveInternalPollerStarted } from "@/lib/archive/internal-poller"
 import { runMailboxSync } from "@/lib/archive/sync-worker"
 
@@ -21,6 +22,10 @@ function normalizeMailboxIds(raw: unknown) {
 
 export async function POST(request: NextRequest) {
   ensureArchiveInternalPollerStarted()
+  if (!checkArchiveAdminToken(request)) {
+    return NextResponse.json({ code: "FORBIDDEN", error: "invalid admin token" }, { status: 403 })
+  }
+
   let payload: SyncPayload
   try {
     payload = await request.json()

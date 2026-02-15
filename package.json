@@ -9,7 +9,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint",
+    "lint": "pnpm exec tsc --noEmit",
     "db:migrate": "tsx scripts/db/migrate.ts",
     "db:rollback": "tsx scripts/db/rollback.ts",
     "db:smoke": "tsx scripts/db/smoke.ts",
