@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { ensureArchiveInternalPollerStarted } from "@/lib/archive/internal-poller"
 import { getSyncSchedulerSettings, updateSyncSchedulerSettings } from "@/lib/archive/scheduler-settings"
 
 export const runtime = "nodejs"
@@ -12,6 +13,7 @@ type SchedulerConfigPayload = {
 }
 
 export async function GET() {
+  ensureArchiveInternalPollerStarted()
   try {
     const settings = await getSyncSchedulerSettings()
     return NextResponse.json({ code: "OK", data: settings })
@@ -22,6 +24,7 @@ export async function GET() {
 }
 
 export async function PATCH(request: NextRequest) {
+  ensureArchiveInternalPollerStarted()
   let payload: SchedulerConfigPayload
   try {
     payload = await request.json()

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 
+import { ensureArchiveInternalPollerStarted } from "@/lib/archive/internal-poller"
 import { runMailboxSync } from "@/lib/archive/sync-worker"
 
 export const runtime = "nodejs"
@@ -19,6 +20,7 @@ function normalizeMailboxIds(raw: unknown) {
 }
 
 export async function POST(request: NextRequest) {
+  ensureArchiveInternalPollerStarted()
   let payload: SyncPayload
   try {
     payload = await request.json()

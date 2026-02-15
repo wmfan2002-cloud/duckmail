@@ -134,7 +134,9 @@ export default function ArchiveSearchPage() {
   const [schedulerLoading, setSchedulerLoading] = useState(false)
   const [schedulerSaving, setSchedulerSaving] = useState(false)
   const [schedulerRunning, setSchedulerRunning] = useState(false)
+  const [fullSyncRunning, setFullSyncRunning] = useState(false)
   const [schedulerError, setSchedulerError] = useState("")
+  const [schedulerNotice, setSchedulerNotice] = useState("")
   const [adminToken, setAdminToken] = useState("")
   const [schedulerConfig, setSchedulerConfig] = useState<SchedulerConfig>({
     enabled: true,
@@ -238,6 +240,7 @@ export default function ArchiveSearchPage() {
   async function saveSchedulerConfig() {
     setSchedulerSaving(true)
     setSchedulerError("")
+    setSchedulerNotice("")
     try {
       const response = await fetch("/api/archive/sync/scheduler-config", {
         method: "PATCH",
@@ -256,6 +259,7 @@ export default function ArchiveSearchPage() {
         throw new Error(payload.error || payload.code || "定时配置保存失败")
       }
       setSchedulerConfig(payload.data)
+      setSchedulerNotice("同步设置已保存")
     } catch (error) {
       const message = error instanceof Error ? error.message : "定时配置保存失败"
       setSchedulerError(message)
@@ -267,6 +271,7 @@ export default function ArchiveSearchPage() {
   async function runScheduledSyncNow() {
     setSchedulerRunning(true)
     setSchedulerError("")
+    setSchedulerNotice("")
     try {
       const headers: Record<string, string> = {
         "content-type": "application/json",
@@ -289,11 +294,49 @@ export default function ArchiveSearchPage() {
         throw new Error(payload.error || payload.code || "立即同步失败")
       }
       await Promise.all([loadSyncRuns(), loadMessages(1), loadSchedulerConfig()])
+      setSchedulerNotice("调度执行已触发")
     } catch (error) {
       const message = error instanceof Error ? error.message : "立即同步失败"
       setSchedulerError(message)
     } finally {
       setSchedulerRunning(false)
+    }
+  }
+
+  async function runFullSyncNow() {
+    setFullSyncRunning(true)
+    setSchedulerError("")
+    setSchedulerNotice("")
+    try {
+      const response = await fetch("/api/archive/sync/run", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          triggerType: "manual",
+          maxPages: 0,
+        }),
+      })
+      const payload = (await response.json()) as {
+        code?: string
+        data?: { failed?: number; succeeded?: number; total?: number }
+        error?: string
+      }
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error || payload.code || "全量同步失败")
+      }
+
+      const total = payload.data?.total ?? 0
+      const succeeded = payload.data?.succeeded ?? 0
+      const failed = payload.data?.failed ?? 0
+      await Promise.all([loadSyncRuns(), loadMessages(1), loadSchedulerConfig()])
+      setSchedulerNotice(`全量同步已完成：总计 ${total}，成功 ${succeeded}，失败 ${failed}`)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "全量同步失败"
+      setSchedulerError(message)
+    } finally {
+      setFullSyncRunning(false)
     }
   }
 
@@ -517,7 +560,7 @@ export default function ArchiveSearchPage() {
               <Clock3 className="h-4 w-4 text-gray-500 dark:text-gray-300" />
             </div>
             <p className="text-xs text-gray-600 dark:text-gray-300">
-              建议平台按固定频率触发 `/api/archive/sync/scheduled`，这里控制实际执行间隔（30/60 分钟）与队列参数。
+              内置轮询已可独立运行（无需外部 cron），这里控制实际执行间隔（30/60 分钟）与队列参数。
             </p>
 
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -629,16 +672,31 @@ export default function ArchiveSearchPage() {
                 variant="outline"
                 size="sm"
                 onClick={() => void runScheduledSyncNow()}
-                disabled={schedulerLoading || schedulerSaving || schedulerRunning}
+                disabled={schedulerLoading || schedulerSaving || schedulerRunning || fullSyncRunning}
               >
                 {schedulerRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
                 立即执行
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void runFullSyncNow()}
+                disabled={schedulerLoading || schedulerSaving || schedulerRunning || fullSyncRunning}
+              >
+                {fullSyncRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                立即执行全部邮箱
               </Button>
               <Button size="sm" onClick={() => void saveSchedulerConfig()} disabled={schedulerLoading || schedulerSaving || schedulerRunning}>
                 {schedulerSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
                 保存设置
               </Button>
             </div>
+
+            {schedulerNotice ? (
+              <div className="rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-200">
+                {schedulerNotice}
+              </div>
+            ) : null}
 
             {schedulerError ? (
               <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
@@ -704,8 +762,8 @@ export default function ArchiveSearchPage() {
       </div>
 
       <Dialog open={detailOpen} onOpenChange={setDetailOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
+        <DialogContent className="max-h-[90vh] overflow-y-auto border border-gray-200 bg-white shadow-2xl sm:max-w-4xl dark:border-gray-800 dark:bg-gray-900">
+          <DialogHeader className="border-b border-gray-200 pb-3 dark:border-gray-700">
             <DialogTitle>邮件详情</DialogTitle>
           </DialogHeader>
           {detailLoading ? (
@@ -731,7 +789,7 @@ export default function ArchiveSearchPage() {
               <p>
                 <strong>Snippet:</strong> {detail.snippet || "-"}
               </p>
-              <section className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/70">
+              <section className="rounded-md border border-gray-200 bg-gray-50 p-3 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <h4 className="mb-2 font-medium">Body Text</h4>
                 <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-gray-700 dark:text-gray-200">
                   {detail.bodyText || "(empty)"}

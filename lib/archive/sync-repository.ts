@@ -1,4 +1,4 @@
-import { and, desc, eq, gte, inArray, isNull, lt, or } from "drizzle-orm"
+import { and, desc, eq, gte, inArray } from "drizzle-orm"
 
 import { mailboxes, messages, syncEvents, syncRuns } from "@/db/schema"
 import { decryptCredential } from "@/lib/archive/crypto"
@@ -107,20 +107,27 @@ export async function listDueMailboxIds(options: { dueMinutes?: number; limit?: 
   const db = getArchiveDb()
   const dueMinutes = options.dueMinutes || 10
   const dueBefore = new Date(Date.now() - dueMinutes * 60 * 1000)
-  const filter = and(
-    eq(mailboxes.isActive, true),
-    or(isNull(mailboxes.lastSyncAt), lt(mailboxes.lastSyncAt, dueBefore)),
-  )
-  const query = db
+  const rows = await db
     .select({
       id: mailboxes.id,
+      lastSyncAt: mailboxes.lastSyncAt,
     })
     .from(mailboxes)
-    .where(filter)
-    .orderBy(desc(mailboxes.updatedAt))
+    .where(eq(mailboxes.isActive, true))
 
-  const rows = options.limit && options.limit > 0 ? await query.limit(options.limit) : await query
-  return rows.map((row) => row.id)
+  const dueRows = rows
+    .filter((row) => !row.lastSyncAt || row.lastSyncAt < dueBefore)
+    .sort((a, b) => {
+      const aTs = a.lastSyncAt ? new Date(a.lastSyncAt).getTime() : 0
+      const bTs = b.lastSyncAt ? new Date(b.lastSyncAt).getTime() : 0
+      if (aTs !== bTs) {
+        return aTs - bTs
+      }
+      return a.id - b.id
+    })
+
+  const limited = options.limit && options.limit > 0 ? dueRows.slice(0, options.limit) : dueRows
+  return limited.map((row) => row.id)
 }
 
 export async function enqueueSyncRuns(mailboxIds: number[], triggerType: string) {

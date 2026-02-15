@@ -126,7 +126,9 @@ pnpm archive:test-login-self-test
 - 限流策略：`ARCHIVE_SYNC_QPS` 最大 6；`ARCHIVE_SYNC_CONCURRENCY` 3~4
 - 分页策略：`ARCHIVE_SYNC_MAX_PAGES=0`（默认）表示全量拉取；可设置正整数限制单邮箱单次同步页数
 
-建议在部署平台配置定时器（例如每 10 分钟）调用 `POST /api/archive/sync/scheduled`，再由 `scheduler-config` 决定实际执行间隔（30/60 分钟）。
+项目内置轮询器默认启用（无需外部 cron），会按 `scheduler-config` 周期自动触发同步。
+如需关闭内置轮询，可设置 `ARCHIVE_INTERNAL_POLLER_ENABLED=0`；轮询 tick 频率可用 `ARCHIVE_INTERNAL_POLL_SECONDS` 调整（默认 60 秒，范围 10-300 秒）。
+若你仍希望平台定时触发，也可继续调用 `POST /api/archive/sync/scheduled`。
 生产环境建议通过 `ARCHIVE_ADMIN_TOKEN` 保护调度入口。
 
 本仓库已提供 Netlify Scheduled Function：`netlify/functions/archive-scheduled.js`（每 10 分钟触发一次），

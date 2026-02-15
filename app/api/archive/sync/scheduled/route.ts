@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { checkArchiveAdminToken } from "@/lib/archive/admin-auth"
+import { ensureArchiveInternalPollerStarted } from "@/lib/archive/internal-poller"
 import { getSyncSchedulerSettings, updateSyncSchedulerSettings } from "@/lib/archive/scheduler-settings"
 import { dispatchDueSyncRuns, processQueuedSyncRuns } from "@/lib/archive/sync-worker"
 
@@ -14,6 +15,7 @@ type ScheduledPayload = {
 }
 
 export async function POST(request: NextRequest) {
+  ensureArchiveInternalPollerStarted()
   if (!checkArchiveAdminToken(request)) {
     return NextResponse.json({ code: "FORBIDDEN", error: "invalid admin token" }, { status: 403 })
   }
