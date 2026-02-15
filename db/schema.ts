@@ -102,14 +102,28 @@ export const syncEvents = pgTable(
   }),
 )
 
+export const archiveSettings = pgTable(
+  "archive_settings",
+  {
+    key: text("key").primaryKey(),
+    value: jsonb("value").$type<Record<string, unknown> | null>().default(null),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (table) => ({
+    updatedAtIdx: index("archive_settings_updated_at_idx").on(table.updatedAt),
+  }),
+)
+
 export const schema = {
   mailboxes,
   messages,
   syncRuns,
   syncEvents,
+  archiveSettings,
 }
 
 export type Mailbox = typeof mailboxes.$inferSelect
 export type Message = typeof messages.$inferSelect
 export type SyncRun = typeof syncRuns.$inferSelect
 export type SyncEvent = typeof syncEvents.$inferSelect
+export type ArchiveSetting = typeof archiveSettings.$inferSelect

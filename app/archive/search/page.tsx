@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { useEffect, useMemo, useState } from "react"
-import { AlertCircle, ArrowLeft, Eye, Loader2, RefreshCw, Search, Trash2 } from "lucide-react"
+import { AlertCircle, ArrowLeft, Clock3, Eye, Loader2, Play, RefreshCw, Save, Search, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -68,6 +68,21 @@ type SyncRunsResponse = {
   error?: string
 }
 
+type SchedulerConfig = {
+  enabled: boolean
+  intervalMinutes: 30 | 60
+  lastTriggeredAt: string | null
+  maxQueue: number
+  processLimit: number
+  updatedAt: string
+}
+
+type SchedulerConfigResponse = {
+  code: string
+  data?: SchedulerConfig
+  error?: string
+}
+
 const DEFAULT_PAGE_SIZE = 30
 
 export default function ArchiveSearchPage() {
@@ -96,10 +111,23 @@ export default function ArchiveSearchPage() {
   const [runsLoading, setRunsLoading] = useState(false)
   const [runsError, setRunsError] = useState("")
   const [runsData, setRunsData] = useState<SyncRunsResponse["data"]>()
+  const [schedulerLoading, setSchedulerLoading] = useState(false)
+  const [schedulerSaving, setSchedulerSaving] = useState(false)
+  const [schedulerRunning, setSchedulerRunning] = useState(false)
+  const [schedulerError, setSchedulerError] = useState("")
+  const [schedulerConfig, setSchedulerConfig] = useState<SchedulerConfig>({
+    enabled: true,
+    intervalMinutes: 30,
+    lastTriggeredAt: null,
+    maxQueue: 30,
+    processLimit: 20,
+    updatedAt: "",
+  })
 
   useEffect(() => {
     void loadMessages(1)
     void loadSyncRuns()
+    void loadSchedulerConfig()
   }, [])
 
   const totalPages = useMemo(() => {
@@ -154,6 +182,77 @@ export default function ArchiveSearchPage() {
       setRunsError(message)
     } finally {
       setRunsLoading(false)
+    }
+  }
+
+  async function loadSchedulerConfig() {
+    setSchedulerLoading(true)
+    setSchedulerError("")
+    try {
+      const response = await fetch("/api/archive/sync/scheduler-config")
+      const payload = (await response.json()) as SchedulerConfigResponse
+      if (!response.ok || payload.code !== "OK" || !payload.data) {
+        throw new Error(payload.error || payload.code || "定时配置获取失败")
+      }
+      setSchedulerConfig(payload.data)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "定时配置获取失败"
+      setSchedulerError(message)
+    } finally {
+      setSchedulerLoading(false)
+    }
+  }
+
+  async function saveSchedulerConfig() {
+    setSchedulerSaving(true)
+    setSchedulerError("")
+    try {
+      const response = await fetch("/api/archive/sync/scheduler-config", {
+        method: "PATCH",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          enabled: schedulerConfig.enabled,
+          intervalMinutes: schedulerConfig.intervalMinutes,
+          maxQueue: schedulerConfig.maxQueue,
+          processLimit: schedulerConfig.processLimit,
+        }),
+      })
+      const payload = (await response.json()) as SchedulerConfigResponse
+      if (!response.ok || payload.code !== "OK" || !payload.data) {
+        throw new Error(payload.error || payload.code || "定时配置保存失败")
+      }
+      setSchedulerConfig(payload.data)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "定时配置保存失败"
+      setSchedulerError(message)
+    } finally {
+      setSchedulerSaving(false)
+    }
+  }
+
+  async function runScheduledSyncNow() {
+    setSchedulerRunning(true)
+    setSchedulerError("")
+    try {
+      const response = await fetch("/api/archive/sync/scheduled", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({ force: true }),
+      })
+      const payload = (await response.json()) as { code?: string; error?: string }
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(payload.error || payload.code || "立即同步失败")
+      }
+      await Promise.all([loadSyncRuns(), loadMessages(1), loadSchedulerConfig()])
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "立即同步失败"
+      setSchedulerError(message)
+    } finally {
+      setSchedulerRunning(false)
     }
   }
 
@@ -370,6 +469,124 @@ export default function ArchiveSearchPage() {
               刷新
             </Button>
           </div>
+
+          <section className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/70">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-medium">自动同步设置</h3>
+              <Clock3 className="h-4 w-4 text-gray-500 dark:text-gray-300" />
+            </div>
+            <p className="text-xs text-gray-600 dark:text-gray-300">
+              建议平台按固定频率触发 `/api/archive/sync/scheduled`，这里控制实际执行间隔（30/60 分钟）与队列参数。
+            </p>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <label className="text-xs text-gray-600 dark:text-gray-300">同步开关</label>
+              <select
+                className="h-9 rounded-md border border-gray-300 bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                value={schedulerConfig.enabled ? "enabled" : "disabled"}
+                onChange={(event) =>
+                  setSchedulerConfig((prev) => ({
+                    ...prev,
+                    enabled: event.target.value === "enabled",
+                  }))
+                }
+                disabled={schedulerLoading || schedulerSaving || schedulerRunning}
+              >
+                <option value="enabled">启用自动同步</option>
+                <option value="disabled">暂停自动同步</option>
+              </select>
+            </div>
+
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <div className="space-y-1">
+                <label className="text-xs text-gray-600 dark:text-gray-300">执行间隔</label>
+                <select
+                  className="h-9 w-full rounded-md border border-gray-300 bg-white px-2 text-sm dark:border-gray-700 dark:bg-gray-900"
+                  value={schedulerConfig.intervalMinutes}
+                  onChange={(event) =>
+                    setSchedulerConfig((prev) => ({
+                      ...prev,
+                      intervalMinutes: Number(event.target.value) === 60 ? 60 : 30,
+                    }))
+                  }
+                  disabled={schedulerLoading || schedulerSaving || schedulerRunning}
+                >
+                  <option value={30}>30 分钟</option>
+                  <option value={60}>60 分钟</option>
+                </select>
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-gray-600 dark:text-gray-300">maxQueue</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={String(schedulerConfig.maxQueue)}
+                  onChange={(event) =>
+                    setSchedulerConfig((prev) => ({
+                      ...prev,
+                      maxQueue: Math.max(1, Math.min(200, Number(event.target.value) || 1)),
+                    }))
+                  }
+                  disabled={schedulerLoading || schedulerSaving || schedulerRunning}
+                />
+              </div>
+
+              <div className="space-y-1">
+                <label className="text-xs text-gray-600 dark:text-gray-300">processLimit</label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={200}
+                  value={String(schedulerConfig.processLimit)}
+                  onChange={(event) =>
+                    setSchedulerConfig((prev) => ({
+                      ...prev,
+                      processLimit: Math.max(1, Math.min(200, Number(event.target.value) || 1)),
+                    }))
+                  }
+                  disabled={schedulerLoading || schedulerSaving || schedulerRunning}
+                />
+              </div>
+            </div>
+
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              上次执行：{schedulerConfig.lastTriggeredAt ? new Date(schedulerConfig.lastTriggeredAt).toLocaleString() : "尚未执行"}
+            </p>
+
+            <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void loadSchedulerConfig()}
+                disabled={schedulerLoading || schedulerSaving || schedulerRunning}
+              >
+                {schedulerLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                读取配置
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void runScheduledSyncNow()}
+                disabled={schedulerLoading || schedulerSaving || schedulerRunning}
+              >
+                {schedulerRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
+                立即执行
+              </Button>
+              <Button size="sm" onClick={() => void saveSchedulerConfig()} disabled={schedulerLoading || schedulerSaving || schedulerRunning}>
+                {schedulerSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                保存设置
+              </Button>
+            </div>
+
+            {schedulerError ? (
+              <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
+                {schedulerError}
+              </div>
+            ) : null}
+          </section>
+
           {runsError ? (
             <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
               {runsError}

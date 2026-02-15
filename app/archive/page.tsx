@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { AlertCircle, ArrowLeft, CheckCircle2, DownloadCloud, Loader2, Power, PowerOff, RefreshCw } from "lucide-react"
+import { AlertCircle, ArrowLeft, CheckCircle2, DownloadCloud, Loader2, Power, PowerOff, RefreshCw, Trash2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -61,6 +61,7 @@ const ERROR_LABELS: Record<string, string> = {
   INVALID_JSON: "请求 JSON 格式不正确",
   INVALID_INPUT: "输入参数不完整或格式错误",
   INVALID_FORMAT: "导入格式只支持 csv 或 text",
+  MAILBOX_NOT_FOUND: "邮箱记录不存在，可能已被删除",
   IMPORT_FAILED: "导入过程中出现异常",
   INTERNAL_ERROR: "服务内部错误，请稍后重试",
 }
@@ -79,6 +80,7 @@ export default function ArchiveMailboxPage() {
   const [query, setQuery] = useState("")
   const [page, setPage] = useState(1)
   const [switchingIds, setSwitchingIds] = useState<number[]>([])
+  const [deletingIds, setDeletingIds] = useState<number[]>([])
 
   const [importOpen, setImportOpen] = useState(false)
   const [importFormat, setImportFormat] = useState<"csv" | "text">("csv")
@@ -174,6 +176,33 @@ export default function ArchiveMailboxPage() {
       setImportError(message)
     } finally {
       setImporting(false)
+    }
+  }
+
+  async function removeMailbox(mailbox: MailboxItem) {
+    const confirmed = window.confirm(
+      `确认删除邮箱 ${mailbox.email} 吗？\n\n删除后将同时删除该邮箱关联的归档消息与同步记录，此操作不可恢复。`,
+    )
+    if (!confirmed) {
+      return
+    }
+
+    setDeletingIds((prev) => [...prev, mailbox.id])
+    try {
+      const response = await fetch(`/api/archive/mailboxes/${mailbox.id}`, {
+        method: "DELETE",
+      })
+      const payload = (await response.json()) as { code?: string; error?: string }
+      if (!response.ok || payload.code !== "OK") {
+        throw new Error(formatError(payload.code, payload.error))
+      }
+
+      setMailboxes((prev) => prev.filter((item) => item.id !== mailbox.id))
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "删除邮箱失败"
+      setListError(message)
+    } finally {
+      setDeletingIds((prev) => prev.filter((id) => id !== mailbox.id))
     }
   }
 
@@ -304,6 +333,7 @@ export default function ArchiveMailboxPage() {
             <TableBody>
               {pagedMailboxes.map((item) => {
                 const switching = switchingIds.includes(item.id)
+                const deleting = deletingIds.includes(item.id)
                 return (
                   <TableRow key={item.id}>
                     <TableCell>{item.id}</TableCell>
@@ -328,7 +358,7 @@ export default function ArchiveMailboxPage() {
                         size="sm"
                         variant={item.isActive ? "destructive" : "secondary"}
                         onClick={() => void toggleMailbox(item)}
-                        disabled={switching}
+                        disabled={switching || deleting}
                       >
                         {switching ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                         {item.isActive ? (
@@ -342,6 +372,16 @@ export default function ArchiveMailboxPage() {
                             启用
                           </>
                         )}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="ml-2 text-red-600 hover:text-red-600 dark:text-red-300 dark:hover:text-red-200"
+                        onClick={() => void removeMailbox(item)}
+                        disabled={switching || deleting}
+                      >
+                        {deleting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                        删除
                       </Button>
                     </TableCell>
                   </TableRow>

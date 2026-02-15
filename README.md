@@ -108,6 +108,7 @@ pnpm archive:test-login-self-test
 - `POST /api/archive/mailboxes`：单条新增/更新邮箱（自动加密 `password_enc`）
 - `GET /api/archive/mailboxes`：列表查询；支持 `email` 精确查询
 - `PATCH /api/archive/mailboxes/:id`：启停邮箱（`isActive`）
+- `DELETE /api/archive/mailboxes/:id`：删除邮箱及其关联归档记录（消息/同步记录会随外键级联删除）
 - `POST /api/archive/mailboxes/import`：批量导入（`format=csv|text`，返回逐行 `line/status/reason`）
 - `POST /api/archive/mailboxes/test-login`：凭据探测，返回稳定错误码（如 `INVALID_CREDENTIALS`）
 
@@ -117,12 +118,18 @@ pnpm archive:test-login-self-test
 - `POST /api/archive/sync/dispatch`：挑选 due 邮箱写入 `sync_runs(status=queued)`
 - `POST /api/archive/sync/background`：消费 queued 任务并调用 worker（重任务路径）
 - `POST /api/archive/sync/scheduled`：串联 `dispatch -> background`（可由外部 cron 每 10 分钟触发）
+- `GET /api/archive/sync/scheduler-config`：读取自动同步配置（启停、执行间隔、队列参数）
+- `PATCH /api/archive/sync/scheduler-config`：更新自动同步配置（`intervalMinutes` 仅支持 30/60）
 - `GET /api/archive/sync/runs`：读取最近同步 run 与错误事件
 - 同步流程：`token -> messages list -> message detail -> upsert`
 - 失败策略：每一步最多 3 次指数退避重试，失败写入 `sync_events`
 - 限流策略：`ARCHIVE_SYNC_QPS` 最大 6；`ARCHIVE_SYNC_CONCURRENCY` 3~4
 
-建议在部署平台配置定时器（例如每 10 分钟）调用 `POST /api/archive/sync/scheduled`，并通过 `ARCHIVE_ADMIN_TOKEN` 保护调度入口。
+建议在部署平台配置定时器（例如每 10 分钟）调用 `POST /api/archive/sync/scheduled`，再由 `scheduler-config` 决定实际执行间隔（30/60 分钟）。
+生产环境建议通过 `ARCHIVE_ADMIN_TOKEN` 保护调度入口。
+
+本仓库已提供 Netlify Scheduled Function：`netlify/functions/archive-scheduled.js`（每 10 分钟触发一次），
+实际是否执行与执行频率由 `/archive/search` 页面里的“自动同步设置”控制。
 
 ### 消息检索与删除 API（归档）
 

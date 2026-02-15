@@ -92,6 +92,20 @@ export async function setMailboxActive(mailboxId: number, isActive: boolean) {
   return row ?? null
 }
 
+export async function deleteMailboxById(mailboxId: number) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const [row] = await db
+    .delete(mailboxes)
+    .where(eq(mailboxes.id, mailboxId))
+    .returning({
+      id: mailboxes.id,
+      email: mailboxes.email,
+    })
+
+  return row ?? null
+}
+
 export async function listMailboxes(options: RevealMailboxOptions = {}) {
   assertArchiveRuntimeReady()
   const db = getArchiveDb()

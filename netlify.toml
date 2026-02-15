@@ -5,6 +5,9 @@
 [build.environment]
   NODE_VERSION = "20.9.0"
 
+[functions]
+  directory = "netlify/functions"
+
 [[redirects]]
   from = "/api/*"
   to = "/api/:splat"

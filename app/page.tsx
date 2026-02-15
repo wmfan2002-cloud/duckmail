@@ -12,6 +12,7 @@ import AccountInfoBanner from "@/components/account-info-banner"
 import UpdateNoticeModal from "@/components/update-notice-modal"
 import MessageList from "@/components/message-list"
 import MessageDetail from "@/components/message-detail"
+import ArchiveHistoryList from "@/components/archive-history-list"
 import { AuthProvider, useAuth } from "@/contexts/auth-context"
 import { MailStatusProvider } from "@/contexts/mail-status-context"
 import type { Message } from "@/types"
@@ -47,6 +48,8 @@ function MainContent() {
   const { isAuthenticated, currentAccount, accounts, register } = useAuth()
   const [currentLocale, setCurrentLocale] = useState("zh")
   const [refreshKey, setRefreshKey] = useState(0)
+  const [historyRefreshKey, setHistoryRefreshKey] = useState(0)
+  const [activeMailView, setActiveMailView] = useState<"inbox" | "history">("inbox")
   const { toast } = useHeroUIToast()
   const isMobile = useIsMobile()
   const [isSidebarOpen, setIsSidebarOpen] = useState(false)
@@ -247,12 +250,30 @@ function MainContent() {
     console.log("Sidebar item clicked:", item)
 
     if (item === "inbox") {
+      setActiveMailView("inbox")
+      setSelectedMessage(null)
+      return
+    }
+
+    if (item === "history") {
+      setActiveMailView("history")
       setSelectedMessage(null)
       return
     }
 
     if (item === "refresh") {
-      // 手动刷新邮件
+      // 手动刷新当前视图
+      if (activeMailView === "history") {
+        toast({
+          title: currentLocale === "en" ? "Refreshing archive emails..." : "正在刷新历史邮件...",
+          color: "primary",
+          variant: "flat",
+          icon: <RefreshCw size={16} />
+        })
+        setHistoryRefreshKey(prev => prev + 1)
+        return
+      }
+
       toast({
         title: currentLocale === "en" ? "Refreshing emails..." : "正在刷新邮件...",
         color: "primary",
@@ -312,7 +333,7 @@ function MainContent() {
       <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100">
         {/* 桌面端侧边栏 */}
         {!isMobile && (
-          <Sidebar activeItem="inbox" onItemClick={handleSidebarItemClick} currentLocale={currentLocale} />
+          <Sidebar activeItem={activeMailView} onItemClick={handleSidebarItemClick} currentLocale={currentLocale} />
         )}
 
         <div className="flex-1 flex flex-col overflow-hidden">
@@ -366,7 +387,13 @@ function MainContent() {
             <div className="h-full flex flex-col">
               <div className="flex-1">
                 {isAuthenticated && currentAccount ? (
-                  selectedMessage ? (
+                  activeMailView === "history" ? (
+                    <ArchiveHistoryList
+                      accountEmail={currentAccount.address}
+                      currentLocale={currentLocale}
+                      refreshKey={historyRefreshKey}
+                    />
+                  ) : selectedMessage ? (
                     <MessageDetail
                       message={selectedMessage}
                       onBack={handleBackToList}
@@ -416,7 +443,7 @@ function MainContent() {
                 </div>
               </div>
               <Sidebar
-                activeItem="inbox"
+                activeItem={activeMailView}
                 onItemClick={(item) => {
                   handleSidebarItemClick(item)
                   setIsSidebarOpen(false)
