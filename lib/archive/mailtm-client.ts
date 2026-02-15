@@ -24,6 +24,11 @@ type MailTmMessageDetail = {
   to?: MailTmAddress[]
 }
 
+type MailTmMessagesPage = {
+  hasNext: boolean
+  items: MailTmMessageSummary[]
+}
+
 const DEFAULT_ARCHIVE_PROVIDER_BASE_URL = "https://api.duckmail.sbs"
 
 function getMailTmBaseUrl() {
@@ -88,8 +93,14 @@ export async function mailTmListMessages(
   token: string,
   page = 1,
   options: RequestOptions = {},
-): Promise<MailTmMessageSummary[]> {
-  const payload = await requestJson<{ "hydra:member"?: MailTmMessageSummary[] }>(
+): Promise<MailTmMessagesPage> {
+  const payload = await requestJson<{
+    "hydra:member"?: MailTmMessageSummary[]
+    "hydra:view"?: {
+      "hydra:next"?: string
+    }
+    messages?: MailTmMessageSummary[]
+  }>(
     `${getMailTmBaseUrl()}/messages?page=${page}`,
     {
       method: "GET",
@@ -99,7 +110,15 @@ export async function mailTmListMessages(
     },
     options,
   )
-  return payload["hydra:member"] || []
+
+  const items = payload["hydra:member"] || payload.messages || []
+  const hasHydraView = payload["hydra:view"] !== undefined
+  const hasNext = hasHydraView ? Boolean(payload["hydra:view"]?.["hydra:next"]) : items.length > 0
+
+  return {
+    items,
+    hasNext,
+  }
 }
 
 export async function mailTmGetMessageDetail(

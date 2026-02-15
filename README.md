@@ -114,7 +114,7 @@ pnpm archive:test-login-self-test
 
 ### 同步 Worker（归档）
 
-- `POST /api/archive/sync/run`：手动触发同步（支持 `mailboxIds`、`triggerType`、`maxPages`）
+- `POST /api/archive/sync/run`：手动触发同步（支持 `mailboxIds`、`triggerType`、`maxPages`，其中 `maxPages=0` 表示全量拉取到末页）
 - `POST /api/archive/sync/dispatch`：挑选 due 邮箱写入 `sync_runs(status=queued)`
 - `POST /api/archive/sync/background`：消费 queued 任务并调用 worker（重任务路径）
 - `POST /api/archive/sync/scheduled`：串联 `dispatch -> background`（可由外部 cron 每 10 分钟触发）
@@ -124,6 +124,7 @@ pnpm archive:test-login-self-test
 - 同步流程：`token -> messages list -> message detail -> upsert`
 - 失败策略：每一步最多 3 次指数退避重试，失败写入 `sync_events`
 - 限流策略：`ARCHIVE_SYNC_QPS` 最大 6；`ARCHIVE_SYNC_CONCURRENCY` 3~4
+- 分页策略：`ARCHIVE_SYNC_MAX_PAGES=0`（默认）表示全量拉取；可设置正整数限制单邮箱单次同步页数
 
 建议在部署平台配置定时器（例如每 10 分钟）调用 `POST /api/archive/sync/scheduled`，再由 `scheduler-config` 决定实际执行间隔（30/60 分钟）。
 生产环境建议通过 `ARCHIVE_ADMIN_TOKEN` 保护调度入口。

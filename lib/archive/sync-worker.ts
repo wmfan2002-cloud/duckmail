@@ -16,6 +16,7 @@ type SyncTriggerType = "manual" | "schedule" | "background"
 
 type SyncOptions = {
   mailboxIds?: number[]
+  // 0 表示不限制分页，按接口返回持续拉取到末页
   maxPages?: number
   triggerType?: SyncTriggerType
 }
@@ -49,6 +50,8 @@ type BackgroundSummary = {
   failed: number
   queueRunIds: number[]
 }
+
+const HARD_MAX_SYNC_PAGES = 500
 
 function sleep(ms: number) {
   return new Promise((resolve) => {
@@ -136,6 +139,20 @@ function resolveErrorMessage(error: unknown) {
   return error instanceof Error ? error.message : "unknown sync error"
 }
 
+function normalizeMaxPages(value: number | string | undefined, fallback: number) {
+  if (value === undefined || value === null || value === "") {
+    return fallback
+  }
+  const parsed = Number(value)
+  if (!Number.isFinite(parsed) || Number.isNaN(parsed)) {
+    return fallback
+  }
+  if (parsed <= 0) {
+    return 0
+  }
+  return clampInt(parsed, 1, HARD_MAX_SYNC_PAGES)
+}
+
 async function syncSingleMailbox(options: {
   gate: () => Promise<void>
   mailbox: {
@@ -155,6 +172,7 @@ async function syncSingleMailbox(options: {
   const runId = run.id
   let fetched = 0
   let upserted = 0
+  let scannedPages = 0
 
   try {
     await appendSyncEvent({
@@ -184,7 +202,7 @@ async function syncSingleMailbox(options: {
             mailboxId: options.mailbox.id,
             level: "warn",
             code: "TOKEN_RETRY",
-            message: "retry mail.tm token request",
+            message: "retry provider token request",
             payload: {
               attempt,
               reason: resolveErrorMessage(error),
@@ -194,7 +212,11 @@ async function syncSingleMailbox(options: {
       },
     )
 
-    for (let page = 1; page <= options.maxPages; page += 1) {
+    for (let page = 1; page <= HARD_MAX_SYNC_PAGES; page += 1) {
+      if (options.maxPages > 0 && page > options.maxPages) {
+        break
+      }
+
       const summaries = await withRetries(
         () => mailTmListMessages(token, page, { beforeRequest: options.gate }),
         {
@@ -205,7 +227,7 @@ async function syncSingleMailbox(options: {
               mailboxId: options.mailbox.id,
               level: "warn",
               code: "LIST_RETRY",
-              message: "retry mail.tm message list request",
+              message: "retry provider message list request",
               payload: {
                 attempt,
                 page,
@@ -215,12 +237,13 @@ async function syncSingleMailbox(options: {
           },
         },
       )
+      scannedPages += 1
 
-      if (summaries.length === 0) {
+      if (summaries.items.length === 0) {
         break
       }
 
-      for (const summary of summaries) {
+      for (const summary of summaries.items) {
         const detail = await withRetries(
           () => mailTmGetMessageDetail(token, summary.id, { beforeRequest: options.gate }),
           {
@@ -231,7 +254,7 @@ async function syncSingleMailbox(options: {
                 mailboxId: options.mailbox.id,
                 level: "warn",
                 code: "DETAIL_RETRY",
-                message: "retry mail.tm message detail request",
+                message: "retry provider message detail request",
                 payload: {
                   attempt,
                   remoteId: summary.id,
@@ -255,6 +278,24 @@ async function syncSingleMailbox(options: {
         })
         upserted += 1
       }
+
+      if (!summaries.hasNext) {
+        break
+      }
+    }
+
+    if (scannedPages >= HARD_MAX_SYNC_PAGES) {
+      await appendSyncEvent({
+        runId,
+        mailboxId: options.mailbox.id,
+        level: "warn",
+        code: "PAGE_GUARD_LIMIT",
+        message: "sync stopped by hard page guard limit",
+        payload: {
+          hardLimit: HARD_MAX_SYNC_PAGES,
+          requestedMaxPages: options.maxPages,
+        },
+      })
     }
 
     await finishSyncRun({
@@ -262,6 +303,7 @@ async function syncSingleMailbox(options: {
       status: "success",
       stats: {
         fetched,
+        scannedPages,
         upserted,
       },
     })
@@ -273,6 +315,7 @@ async function syncSingleMailbox(options: {
       message: "sync finished",
       payload: {
         fetched,
+        scannedPages,
         upserted,
       },
     })
@@ -294,6 +337,7 @@ async function syncSingleMailbox(options: {
       errorMessage,
       stats: {
         fetched,
+        scannedPages,
         upserted,
       },
     })
@@ -320,7 +364,7 @@ async function syncSingleMailbox(options: {
 function resolveSyncConfig() {
   const qps = clampInt(Number(process.env.ARCHIVE_SYNC_QPS || 6), 1, 6)
   const concurrency = clampInt(Number(process.env.ARCHIVE_SYNC_CONCURRENCY || 3), 3, 4)
-  const maxPages = clampInt(Number(process.env.ARCHIVE_SYNC_MAX_PAGES || 5), 1, 20)
+  const maxPages = normalizeMaxPages(process.env.ARCHIVE_SYNC_MAX_PAGES, 0)
   return {
     qps,
     concurrency,
@@ -335,7 +379,7 @@ export async function runMailboxSync(options: SyncOptions = {}): Promise<SyncSum
     mailboxIds: options.mailboxIds,
   })
   const gate = createRequestGate(config.qps)
-  const maxPages = options.maxPages ? clampInt(options.maxPages, 1, 20) : config.maxPages
+  const maxPages = normalizeMaxPages(options.maxPages, config.maxPages)
 
   const results = await runWithConcurrency(mailboxes, config.concurrency, async (mailbox) =>
     syncSingleMailbox({
