@@ -115,6 +115,7 @@ export default function ArchiveSearchPage() {
   const [schedulerSaving, setSchedulerSaving] = useState(false)
   const [schedulerRunning, setSchedulerRunning] = useState(false)
   const [schedulerError, setSchedulerError] = useState("")
+  const [adminToken, setAdminToken] = useState("")
   const [schedulerConfig, setSchedulerConfig] = useState<SchedulerConfig>({
     enabled: true,
     intervalMinutes: 30,
@@ -128,6 +129,11 @@ export default function ArchiveSearchPage() {
     void loadMessages(1)
     void loadSyncRuns()
     void loadSchedulerConfig()
+
+    if (typeof window !== "undefined") {
+      const savedToken = window.localStorage.getItem("archive-admin-token") || ""
+      setAdminToken(savedToken)
+    }
   }, [])
 
   const totalPages = useMemo(() => {
@@ -236,15 +242,24 @@ export default function ArchiveSearchPage() {
     setSchedulerRunning(true)
     setSchedulerError("")
     try {
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+      }
+      const trimmedToken = adminToken.trim()
+      if (trimmedToken) {
+        headers["x-archive-admin-token"] = trimmedToken
+      }
+
       const response = await fetch("/api/archive/sync/scheduled", {
         method: "POST",
-        headers: {
-          "content-type": "application/json",
-        },
+        headers,
         body: JSON.stringify({ force: true }),
       })
       const payload = (await response.json()) as { code?: string; error?: string }
       if (!response.ok || payload.code !== "OK") {
+        if (response.status === 403) {
+          throw new Error("invalid admin token，请检查管理员令牌是否正确")
+        }
         throw new Error(payload.error || payload.code || "立即同步失败")
       }
       await Promise.all([loadSyncRuns(), loadMessages(1), loadSchedulerConfig()])
@@ -549,6 +564,25 @@ export default function ArchiveSearchPage() {
                   disabled={schedulerLoading || schedulerSaving || schedulerRunning}
                 />
               </div>
+            </div>
+
+            <div className="space-y-1">
+              <label className="text-xs text-gray-600 dark:text-gray-300">
+                管理员令牌（用于“立即执行”）
+              </label>
+              <Input
+                type="password"
+                placeholder="ARCHIVE_ADMIN_TOKEN"
+                value={adminToken}
+                onChange={(event) => {
+                  const value = event.target.value
+                  setAdminToken(value)
+                  if (typeof window !== "undefined") {
+                    window.localStorage.setItem("archive-admin-token", value)
+                  }
+                }}
+                disabled={schedulerLoading || schedulerSaving || schedulerRunning}
+              />
             </div>
 
             <p className="text-xs text-gray-500 dark:text-gray-400">

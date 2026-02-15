@@ -410,10 +410,10 @@ export default function ArchiveMailboxPage() {
       </div>
 
       <Dialog open={importOpen} onOpenChange={setImportOpen}>
-        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl">
-          <DialogHeader>
+        <DialogContent className="max-h-[90vh] overflow-y-auto border border-gray-200 bg-white shadow-2xl sm:max-w-4xl dark:border-gray-800 dark:bg-gray-900">
+          <DialogHeader className="border-b border-gray-200 pb-3 dark:border-gray-700">
             <DialogTitle>批量导入邮箱</DialogTitle>
-            <DialogDescription>
+            <DialogDescription className="text-gray-600 dark:text-gray-300">
               CSV 示例：`email,password,provider`。Text 示例：`email----password` 或 `email password`。
             </DialogDescription>
           </DialogHeader>
@@ -439,7 +439,7 @@ export default function ArchiveMailboxPage() {
               value={importContent}
               onChange={(event) => setImportContent(event.target.value)}
               placeholder="粘贴待导入内容..."
-              className="font-mono text-xs"
+              className="min-h-[260px] border-gray-300 bg-white font-mono text-xs text-gray-900 shadow-sm placeholder:text-gray-400 dark:border-gray-700 dark:bg-gray-950 dark:text-gray-100 dark:placeholder:text-gray-500"
             />
 
             {importError ? (
@@ -460,7 +460,7 @@ export default function ArchiveMailboxPage() {
             </div>
 
             {importSummary ? (
-              <section className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
+              <section className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4 shadow-sm dark:border-gray-700 dark:bg-gray-800">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm text-gray-700 dark:text-gray-200">
                     总计 {importSummary.total} 行，成功 {importSummary.success}，失败 {importSummary.failed}
@@ -499,7 +499,7 @@ export default function ArchiveMailboxPage() {
                   </div>
                 </div>
 
-                <div className="max-h-[280px] overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700">
+                <div className="max-h-[280px] overflow-y-auto rounded-md border border-gray-200 bg-white dark:border-gray-700 dark:bg-gray-900">
                   <Table>
                     <TableHeader>
                       <TableRow>
