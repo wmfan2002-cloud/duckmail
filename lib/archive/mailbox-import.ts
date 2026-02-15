@@ -74,7 +74,7 @@ export function parseMailboxImportRows(options: ImportOptions) {
   const lines = options.content.replace(/\r\n/g, "\n").split("\n")
   const parsedRows: ParsedMailboxRow[] = []
   const failures: ImportResultItem[] = []
-  const defaultProvider = options.defaultProvider?.trim() || "mail.tm"
+  const defaultProvider = options.defaultProvider?.trim() || "wmxs.cloud"
 
   let firstDataLineHandled = false
   for (let i = 0; i < lines.length; i += 1) {

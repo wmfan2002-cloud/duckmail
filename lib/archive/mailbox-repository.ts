@@ -33,7 +33,7 @@ export async function upsertMailboxCredential(input: UpsertMailboxInput) {
   const db = getArchiveDb()
   const passwordEnc = encryptCredential(input.password)
   const now = new Date()
-  const provider = input.provider?.trim() || "mail.tm"
+  const provider = input.provider?.trim() || "wmxs.cloud"
 
   const [row] = await db
     .insert(mailboxes)

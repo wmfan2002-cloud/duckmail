@@ -24,10 +24,10 @@ type MailTmMessageDetail = {
   to?: MailTmAddress[]
 }
 
-const DEFAULT_MAIL_TM_BASE_URL = "https://api.mail.tm"
+const DEFAULT_ARCHIVE_PROVIDER_BASE_URL = "https://api.duckmail.sbs"
 
 function getMailTmBaseUrl() {
-  return (process.env.ARCHIVE_PROVIDER_BASE_URL || DEFAULT_MAIL_TM_BASE_URL).replace(/\/+$/, "")
+  return (process.env.ARCHIVE_PROVIDER_BASE_URL || DEFAULT_ARCHIVE_PROVIDER_BASE_URL).replace(/\/+$/, "")
 }
 
 async function requestJson<T>(url: string, init: RequestInit, options: RequestOptions = {}): Promise<T> {
@@ -48,7 +48,7 @@ async function requestJson<T>(url: string, init: RequestInit, options: RequestOp
     })
 
     if (!response.ok) {
-      const error = new Error(`mail.tm request failed with status ${response.status}`)
+      const error = new Error(`archive provider request failed with status ${response.status}`)
       ;(error as Error & { status?: number }).status = response.status
       throw error
     }
@@ -79,7 +79,7 @@ export async function mailTmCreateToken(
   )
 
   if (!payload.token) {
-    throw new Error("mail.tm token missing from response")
+    throw new Error("archive provider token missing from response")
   }
   return payload.token
 }

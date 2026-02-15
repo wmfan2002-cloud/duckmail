@@ -10,7 +10,7 @@ type TestLoginResult = {
   ok: boolean
 }
 
-const DEFAULT_MAIL_TM_BASE_URL = "https://api.mail.tm"
+const DEFAULT_ARCHIVE_PROVIDER_BASE_URL = "https://api.duckmail.sbs"
 
 type TestLoginInput = {
   email: string
@@ -19,7 +19,7 @@ type TestLoginInput = {
 }
 
 function normalizeProvider(provider?: string) {
-  return (provider || "mail.tm").trim().toLowerCase()
+  return (provider || "wmxs.cloud").trim().toLowerCase()
 }
 
 function isCredentialShapeValid(email: string, password: string) {
@@ -35,14 +35,8 @@ export async function testMailboxLogin(input: TestLoginInput): Promise<TestLogin
     }
   }
 
-  if (provider !== "mail.tm") {
-    return {
-      ok: false,
-      code: "UNSUPPORTED_PROVIDER",
-    }
-  }
-
-  const endpoint = `${process.env.ARCHIVE_PROVIDER_BASE_URL || DEFAULT_MAIL_TM_BASE_URL}/token`
+  // 当前归档登录统一走可配置的上游 token 端点，不强制限制 provider 枚举。
+  const endpoint = `${process.env.ARCHIVE_PROVIDER_BASE_URL || DEFAULT_ARCHIVE_PROVIDER_BASE_URL}/token`
   const controller = new AbortController()
   const timeoutId = setTimeout(() => controller.abort(), 10_000)
 

@@ -84,17 +84,37 @@ type SchedulerConfigResponse = {
 }
 
 const DEFAULT_PAGE_SIZE = 30
+const DEFAULT_ARCHIVE_DOMAIN = "wmxs.cloud"
+
+type SearchFilters = {
+  mailbox: string
+  domain: string
+  from: string
+  subject: string
+  q: string
+  start: string
+  end: string
+}
+
+const DEFAULT_SEARCH_FILTERS: SearchFilters = {
+  mailbox: "",
+  domain: DEFAULT_ARCHIVE_DOMAIN,
+  from: "",
+  subject: "",
+  q: "",
+  start: "",
+  end: "",
+}
+
+function normalizeSearchFilters(filters: SearchFilters): SearchFilters {
+  return {
+    ...filters,
+    domain: filters.domain.trim() || DEFAULT_ARCHIVE_DOMAIN,
+  }
+}
 
 export default function ArchiveSearchPage() {
-  const [filters, setFilters] = useState({
-    mailbox: "",
-    domain: "",
-    from: "",
-    subject: "",
-    q: "",
-    start: "",
-    end: "",
-  })
+  const [filters, setFilters] = useState<SearchFilters>(DEFAULT_SEARCH_FILTERS)
   const [page, setPage] = useState(1)
   const [listLoading, setListLoading] = useState(false)
   const [listError, setListError] = useState("")
@@ -141,11 +161,12 @@ export default function ArchiveSearchPage() {
     return Math.max(1, Math.ceil(total / DEFAULT_PAGE_SIZE))
   }, [listData?.total])
 
-  function buildSearchParams(targetPage: number) {
+  function buildSearchParams(targetPage: number, targetFilters: SearchFilters = filters) {
+    const normalizedFilters = normalizeSearchFilters(targetFilters)
     const searchParams = new URLSearchParams()
     searchParams.set("page", String(targetPage))
     searchParams.set("pageSize", String(DEFAULT_PAGE_SIZE))
-    for (const [key, value] of Object.entries(filters)) {
+    for (const [key, value] of Object.entries(normalizedFilters)) {
       const trimmed = value.trim()
       if (trimmed) {
         searchParams.set(key, trimmed)
@@ -154,11 +175,16 @@ export default function ArchiveSearchPage() {
     return searchParams.toString()
   }
 
-  async function loadMessages(targetPage = page) {
+  async function loadMessages(targetPage = page, targetFilters: SearchFilters = filters) {
+    const normalizedFilters = normalizeSearchFilters(targetFilters)
+    if (normalizedFilters.domain !== targetFilters.domain) {
+      setFilters((prev) => ({ ...prev, domain: normalizedFilters.domain }))
+    }
+
     setListLoading(true)
     setListError("")
     try {
-      const response = await fetch(`/api/archive/messages?${buildSearchParams(targetPage)}`)
+      const response = await fetch(`/api/archive/messages?${buildSearchParams(targetPage, normalizedFilters)}`)
       const payload = (await response.json()) as MessageSearchResponse
       if (!response.ok || payload.code !== "OK" || !payload.data) {
         throw new Error(payload.error || payload.code || "检索失败")
@@ -349,7 +375,7 @@ export default function ArchiveSearchPage() {
               onChange={(event) => setFilters((prev) => ({ ...prev, mailbox: event.target.value }))}
             />
             <Input
-              placeholder="domain"
+              placeholder={`domain (默认 ${DEFAULT_ARCHIVE_DOMAIN})`}
               value={filters.domain}
               onChange={(event) => setFilters((prev) => ({ ...prev, domain: event.target.value }))}
             />
