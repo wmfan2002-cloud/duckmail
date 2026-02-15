@@ -348,6 +348,8 @@ async function syncSingleMailbox(options: {
       code: errorCode,
       message: errorMessage,
     })
+    // 失败也记录本次尝试时间，避免无效账号长期占满队列导致其它邮箱饥饿。
+    await updateMailboxLastSyncAt(options.mailbox.id)
 
     return {
       mailboxId: options.mailbox.id,

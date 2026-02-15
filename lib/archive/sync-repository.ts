@@ -53,6 +53,8 @@ type UpsertMessageInput = {
   toAddresses?: string[] | null
 }
 
+const IN_FLIGHT_SYNC_STATUSES = ["queued", "dispatching", "running"] as const
+
 export async function listSyncMailboxes(options: { mailboxIds?: number[]; limit?: number } = {}) {
   assertArchiveRuntimeReady()
   const db = getArchiveDb()
@@ -80,6 +82,42 @@ export async function listSyncMailboxes(options: { mailboxIds?: number[]; limit?
     provider: row.provider,
     credential: decryptCredential(row.passwordEnc),
   }))
+}
+
+export async function listActiveMailboxIds(options: { mailboxIds?: number[] } = {}) {
+  assertArchiveRuntimeReady()
+  const db = getArchiveDb()
+  const filter =
+    options.mailboxIds && options.mailboxIds.length > 0
+      ? and(eq(mailboxes.isActive, true), inArray(mailboxes.id, options.mailboxIds))
+      : eq(mailboxes.isActive, true)
+
+  const rows = await db
+    .select({
+      id: mailboxes.id,
+    })
+    .from(mailboxes)
+    .where(filter)
+
+  return rows.map((row) => row.id)
+}
+
+export async function filterRunnableMailboxIds(mailboxIds: number[]) {
+  assertArchiveRuntimeReady()
+  if (mailboxIds.length === 0) {
+    return []
+  }
+
+  const db = getArchiveDb()
+  const rows = await db
+    .select({
+      mailboxId: syncRuns.mailboxId,
+    })
+    .from(syncRuns)
+    .where(and(inArray(syncRuns.mailboxId, mailboxIds), inArray(syncRuns.status, [...IN_FLIGHT_SYNC_STATUSES])))
+
+  const inFlightIds = new Set(rows.map((row) => row.mailboxId))
+  return mailboxIds.filter((id) => !inFlightIds.has(id))
 }
 
 export async function createSyncRun(input: CreateSyncRunInput) {

@@ -113,6 +113,16 @@ function normalizeSearchFilters(filters: SearchFilters): SearchFilters {
   }
 }
 
+async function parseJsonOrThrow<T>(response: Response): Promise<T> {
+  const raw = await response.text()
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    const snippet = raw.replace(/\s+/g, " ").slice(0, 120)
+    throw new Error(`服务返回了非 JSON 响应，可能是网关超时或代理错误：${snippet}`)
+  }
+}
+
 export default function ArchiveSearchPage() {
   const [filters, setFilters] = useState<SearchFilters>(DEFAULT_SEARCH_FILTERS)
   const [page, setPage] = useState(1)
@@ -286,7 +296,7 @@ export default function ArchiveSearchPage() {
         headers,
         body: JSON.stringify({ force: true }),
       })
-      const payload = (await response.json()) as { code?: string; error?: string }
+      const payload = await parseJsonOrThrow<{ code?: string; error?: string }>(response)
       if (!response.ok || payload.code !== "OK") {
         if (response.status === 403) {
           throw new Error("invalid admin token，请检查管理员令牌是否正确")
@@ -308,30 +318,36 @@ export default function ArchiveSearchPage() {
     setSchedulerError("")
     setSchedulerNotice("")
     try {
-      const response = await fetch("/api/archive/sync/run", {
+      const response = await fetch("/api/archive/sync/run-all", {
         method: "POST",
         headers: {
           "content-type": "application/json",
         },
         body: JSON.stringify({
-          triggerType: "manual",
-          maxPages: 0,
+          processLimit: schedulerConfig.processLimit,
         }),
       })
-      const payload = (await response.json()) as {
+      const payload = await parseJsonOrThrow<{
         code?: string
-        data?: { failed?: number; succeeded?: number; total?: number }
+        data?: {
+          queuedCount?: number
+          queuedRunIds?: number[]
+          requestedMailboxCount?: number
+          skippedInFlight?: number
+        }
         error?: string
-      }
+      }>(response)
       if (!response.ok || payload.code !== "OK") {
         throw new Error(payload.error || payload.code || "全量同步失败")
       }
 
-      const total = payload.data?.total ?? 0
-      const succeeded = payload.data?.succeeded ?? 0
-      const failed = payload.data?.failed ?? 0
+      const requestedMailboxCount = payload.data?.requestedMailboxCount ?? 0
+      const queuedCount = payload.data?.queuedCount ?? 0
+      const skippedInFlight = payload.data?.skippedInFlight ?? 0
       await Promise.all([loadSyncRuns(), loadMessages(1), loadSchedulerConfig()])
-      setSchedulerNotice(`全量同步已完成：总计 ${total}，成功 ${succeeded}，失败 ${failed}`)
+      setSchedulerNotice(
+        `全量同步已入队：总邮箱 ${requestedMailboxCount}，新入队 ${queuedCount}，进行中跳过 ${skippedInFlight}。`,
+      )
     } catch (error) {
       const message = error instanceof Error ? error.message : "全量同步失败"
       setSchedulerError(message)

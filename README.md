@@ -115,6 +115,7 @@ pnpm archive:test-login-self-test
 ### 同步 Worker（归档）
 
 - `POST /api/archive/sync/run`：手动触发同步（支持 `mailboxIds`、`triggerType`、`maxPages`，其中 `maxPages=0` 表示全量拉取到末页）
+- `POST /api/archive/sync/run-all`：全量邮箱快速入队（避免长请求超时），随后由后台消费队列
 - `POST /api/archive/sync/dispatch`：挑选 due 邮箱写入 `sync_runs(status=queued)`
 - `POST /api/archive/sync/background`：消费 queued 任务并调用 worker（重任务路径）
 - `POST /api/archive/sync/scheduled`：串联 `dispatch -> background`（可由外部 cron 每 10 分钟触发）
