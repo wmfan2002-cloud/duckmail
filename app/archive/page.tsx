@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { AlertCircle, CheckCircle2, DownloadCloud, Loader2, Power, PowerOff, RefreshCw } from "lucide-react"
+import { AlertCircle, ArrowLeft, CheckCircle2, DownloadCloud, Loader2, Power, PowerOff, RefreshCw } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -215,18 +215,24 @@ export default function ArchiveMailboxPage() {
   }, [filteredImportResults, importPage, totalImportPages])
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-4 py-8 text-slate-50 md:px-8">
+    <main className="min-h-screen bg-gray-50 px-4 py-8 text-gray-800 dark:bg-gray-900 dark:text-gray-100 md:px-8">
       <div className="mx-auto max-w-7xl space-y-6">
-        <section className="rounded-2xl border border-cyan-500/30 bg-slate-900/80 p-6 shadow-[0_0_50px_rgba(8,145,178,0.15)] backdrop-blur">
+        <section className="rounded-2xl border border-gray-200 bg-white p-6 dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.22em] text-cyan-300/80">DuckMail Archive Console</p>
+              <p className="text-xs uppercase tracking-[0.22em] text-gray-500 dark:text-gray-400">DuckMail Archive Console</p>
               <h1 className="mt-2 text-2xl font-semibold md:text-3xl">邮箱管理与导入面板</h1>
-              <p className="mt-2 text-sm text-slate-300">
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300">
                 支持批量导入结果回显、错误行筛选和邮箱启停。默认分页渲染，500 行导入结果不会一次性阻塞页面。
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
+              <Button asChild variant="outline">
+                <Link href="/">
+                  <ArrowLeft className="h-4 w-4" />
+                  返回主页面
+                </Link>
+              </Button>
               <Button asChild variant="outline">
                 <Link href="/archive/search">检索与日志</Link>
               </Button>
@@ -243,42 +249,42 @@ export default function ArchiveMailboxPage() {
         </section>
 
         <section className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          <article className="rounded-xl border border-slate-700 bg-slate-900/70 p-4">
-            <p className="text-xs uppercase tracking-widest text-slate-400">邮箱总数</p>
+          <article className="rounded-xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900">
+            <p className="text-xs uppercase tracking-widest text-gray-500 dark:text-gray-400">邮箱总数</p>
             <p className="mt-3 text-3xl font-semibold">{mailboxes.length}</p>
           </article>
-          <article className="rounded-xl border border-emerald-700/50 bg-slate-900/70 p-4">
-            <p className="text-xs uppercase tracking-widest text-emerald-300">启用中</p>
-            <p className="mt-3 text-3xl font-semibold text-emerald-200">
+          <article className="rounded-xl border border-emerald-300 bg-white p-4 dark:border-emerald-700/50 dark:bg-gray-900">
+            <p className="text-xs uppercase tracking-widest text-emerald-600 dark:text-emerald-300">启用中</p>
+            <p className="mt-3 text-3xl font-semibold text-emerald-600 dark:text-emerald-200">
               {mailboxes.filter((item) => item.isActive).length}
             </p>
           </article>
-          <article className="rounded-xl border border-orange-700/50 bg-slate-900/70 p-4">
-            <p className="text-xs uppercase tracking-widest text-orange-300">已停用</p>
-            <p className="mt-3 text-3xl font-semibold text-orange-200">
+          <article className="rounded-xl border border-orange-300 bg-white p-4 dark:border-orange-700/50 dark:bg-gray-900">
+            <p className="text-xs uppercase tracking-widest text-orange-600 dark:text-orange-300">已停用</p>
+            <p className="mt-3 text-3xl font-semibold text-orange-600 dark:text-orange-200">
               {mailboxes.filter((item) => !item.isActive).length}
             </p>
           </article>
         </section>
 
-        <section className="rounded-2xl border border-slate-700 bg-slate-900/70 p-4 md:p-6">
+        <section className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-800 dark:bg-gray-900 md:p-6">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <Input
               placeholder="按邮箱/provider/id 过滤"
-              className="max-w-md bg-slate-900"
+              className="max-w-md bg-white dark:bg-gray-800"
               value={query}
               onChange={(event) => {
                 setQuery(event.target.value)
                 setPage(1)
               }}
             />
-            <p className="text-sm text-slate-300">
+            <p className="text-sm text-gray-600 dark:text-gray-300">
               第 {Math.min(page, totalMailboxPages)} / {totalMailboxPages} 页
             </p>
           </div>
 
           {listError ? (
-            <div className="mb-4 flex items-center gap-2 rounded-md border border-red-500/50 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            <div className="mb-4 flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/50 dark:bg-red-500/10 dark:text-red-200">
               <AlertCircle className="h-4 w-4" />
               {listError}
             </div>
@@ -303,13 +309,15 @@ export default function ArchiveMailboxPage() {
                     <TableCell>{item.id}</TableCell>
                     <TableCell className="font-medium">{item.email}</TableCell>
                     <TableCell>{item.provider}</TableCell>
-                    <TableCell className="font-mono text-xs text-slate-300">
+                    <TableCell className="font-mono text-xs text-gray-600 dark:text-gray-300">
                       {item.passwordEncPreview || "-"}
                     </TableCell>
                     <TableCell>
                       <span
                         className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium ${
-                          item.isActive ? "bg-emerald-500/20 text-emerald-200" : "bg-orange-500/20 text-orange-200"
+                          item.isActive
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-500/20 dark:text-emerald-200"
+                            : "bg-orange-100 text-orange-700 dark:bg-orange-500/20 dark:text-orange-200"
                         }`}
                       >
                         {item.isActive ? "active" : "disabled"}
@@ -395,7 +403,7 @@ export default function ArchiveMailboxPage() {
             />
 
             {importError ? (
-              <div className="flex items-center gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+              <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
                 <AlertCircle className="h-4 w-4" />
                 {importError}
               </div>
@@ -412,9 +420,9 @@ export default function ArchiveMailboxPage() {
             </div>
 
             {importSummary ? (
-              <section className="space-y-3 rounded-md border bg-slate-950/80 p-4">
+              <section className="space-y-3 rounded-md border border-gray-200 bg-gray-50 p-4 dark:border-gray-700 dark:bg-gray-800/70">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-sm text-slate-200">
+                  <p className="text-sm text-gray-700 dark:text-gray-200">
                     总计 {importSummary.total} 行，成功 {importSummary.success}，失败 {importSummary.failed}
                   </p>
                   <div className="flex gap-2">
@@ -451,7 +459,7 @@ export default function ArchiveMailboxPage() {
                   </div>
                 </div>
 
-                <div className="max-h-[280px] overflow-y-auto rounded-md border border-slate-700">
+                <div className="max-h-[280px] overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700">
                   <Table>
                     <TableHeader>
                       <TableRow>
@@ -479,7 +487,7 @@ export default function ArchiveMailboxPage() {
                               </span>
                             )}
                           </TableCell>
-                          <TableCell className="text-xs text-slate-300">{item.reason || "-"}</TableCell>
+                          <TableCell className="text-xs text-gray-600 dark:text-gray-300">{item.reason || "-"}</TableCell>
                         </TableRow>
                       ))}
                     </TableBody>

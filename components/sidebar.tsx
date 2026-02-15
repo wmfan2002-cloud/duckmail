@@ -2,7 +2,7 @@
 
 import { Button } from "@heroui/button"
 import { Card } from "@heroui/card"
-import { Mail, RefreshCw, Code, HelpCircle, MessageSquare, ExternalLink, Bell } from "lucide-react"
+import { Mail, RefreshCw, Archive, Search, Code, HelpCircle, MessageSquare, ExternalLink, Bell } from "lucide-react"
 
 interface SidebarProps {
   activeItem: string
@@ -22,6 +22,16 @@ export default function Sidebar({ activeItem, onItemClick, currentLocale, isMobi
       id: "refresh",
       label: currentLocale === "en" ? "Refresh" : "刷新",
       icon: RefreshCw
+    },
+    {
+      id: "archive",
+      label: currentLocale === "en" ? "Archive" : "归档管理",
+      icon: Archive
+    },
+    {
+      id: "archive-search",
+      label: currentLocale === "en" ? "Archive Search" : "归档检索",
+      icon: Search
     },
   ]
 

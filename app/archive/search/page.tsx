@@ -200,15 +200,21 @@ export default function ArchiveSearchPage() {
   }
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-slate-950 via-slate-900 to-violet-950 px-4 py-8 text-slate-100 md:px-8">
+    <main className="min-h-screen bg-gray-50 px-4 py-8 text-gray-800 dark:bg-gray-900 dark:text-gray-100 md:px-8">
       <div className="mx-auto grid max-w-7xl gap-6 lg:grid-cols-[1.3fr_0.9fr]">
-        <section className="space-y-4 rounded-2xl border border-violet-500/30 bg-slate-900/80 p-5">
+        <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs uppercase tracking-[0.2em] text-violet-300/80">Archive Search</p>
+              <p className="text-xs uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">Archive Search</p>
               <h1 className="mt-2 text-2xl font-semibold">归档检索与删除面板</h1>
             </div>
             <div className="flex gap-2">
+              <Button asChild variant="outline">
+                <Link href="/">
+                  <ArrowLeft className="h-4 w-4" />
+                  返回主页面
+                </Link>
+              </Button>
               <Button asChild variant="outline">
                 <Link href="/archive">
                   <ArrowLeft className="h-4 w-4" />
@@ -250,7 +256,7 @@ export default function ArchiveSearchPage() {
             />
             <div className="flex items-center gap-2">
               <select
-                className="h-10 rounded-md border border-slate-700 bg-slate-900 px-3 text-sm"
+                className="h-10 w-full rounded-md border border-gray-300 bg-white px-3 text-sm dark:border-gray-700 dark:bg-gray-800"
                 value={deleteMode}
                 onChange={(event) => setDeleteMode(event.target.value as "local" | "remote" | "both")}
               >
@@ -258,15 +264,6 @@ export default function ArchiveSearchPage() {
                 <option value="local">delete mode: local</option>
                 <option value="remote">delete mode: remote</option>
               </select>
-              <Button
-                onClick={() => {
-                  setPage(1)
-                  void loadMessages(1)
-                }}
-              >
-                <Search className="h-4 w-4" />
-                检索
-              </Button>
             </div>
             <Input
               type="datetime-local"
@@ -278,16 +275,27 @@ export default function ArchiveSearchPage() {
               value={filters.end}
               onChange={(event) => setFilters((prev) => ({ ...prev, end: event.target.value }))}
             />
+            <div className="md:col-span-3 flex justify-end">
+              <Button
+                onClick={() => {
+                  setPage(1)
+                  void loadMessages(1)
+                }}
+              >
+                <Search className="h-4 w-4" />
+                检索
+              </Button>
+            </div>
           </div>
 
           {listError ? (
-            <div className="flex items-center gap-2 rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            <div className="flex items-center gap-2 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
               <AlertCircle className="h-4 w-4" />
               {listError}
             </div>
           ) : null}
 
-          <div className="overflow-x-auto rounded-md border border-slate-700">
+          <div className="overflow-x-auto rounded-md border border-gray-200 dark:border-gray-700">
             <Table>
               <TableHeader>
                 <TableRow>
@@ -341,7 +349,7 @@ export default function ArchiveSearchPage() {
             }}>
               上一页
             </Button>
-            <span className="inline-flex items-center text-sm text-slate-300">
+            <span className="inline-flex items-center text-sm text-gray-600 dark:text-gray-300">
               {page}/{totalPages}
             </span>
             <Button variant="outline" disabled={page >= totalPages} onClick={() => {
@@ -354,7 +362,7 @@ export default function ArchiveSearchPage() {
           </div>
         </section>
 
-        <section className="space-y-4 rounded-2xl border border-slate-700 bg-slate-900/70 p-5">
+        <section className="space-y-4 rounded-2xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-gray-900">
           <div className="flex items-center justify-between">
             <h2 className="text-lg font-semibold">同步记录与错误日志</h2>
             <Button variant="outline" size="sm" onClick={() => void loadSyncRuns()} disabled={runsLoading}>
@@ -363,14 +371,14 @@ export default function ArchiveSearchPage() {
             </Button>
           </div>
           {runsError ? (
-            <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
               {runsError}
             </div>
           ) : null}
 
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-slate-300">最近 Runs</h3>
-            <div className="max-h-[220px] overflow-y-auto rounded-md border border-slate-700">
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">最近 Runs</h3>
+            <div className="max-h-[220px] overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -393,8 +401,8 @@ export default function ArchiveSearchPage() {
           </div>
 
           <div className="space-y-3">
-            <h3 className="text-sm font-medium text-slate-300">最近 Errors</h3>
-            <div className="max-h-[220px] overflow-y-auto rounded-md border border-slate-700">
+            <h3 className="text-sm font-medium text-gray-600 dark:text-gray-300">最近 Errors</h3>
+            <div className="max-h-[220px] overflow-y-auto rounded-md border border-gray-200 dark:border-gray-700">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -424,12 +432,12 @@ export default function ArchiveSearchPage() {
             <DialogTitle>邮件详情</DialogTitle>
           </DialogHeader>
           {detailLoading ? (
-            <div className="flex items-center gap-2 text-sm text-slate-300">
+            <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-300">
               <Loader2 className="h-4 w-4 animate-spin" />
               加载中...
             </div>
           ) : detailError ? (
-            <div className="rounded-md border border-red-500/40 bg-red-500/10 px-3 py-2 text-sm text-red-200">
+            <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-500/40 dark:bg-red-500/10 dark:text-red-200">
               {detailError}
             </div>
           ) : detail ? (
@@ -446,9 +454,9 @@ export default function ArchiveSearchPage() {
               <p>
                 <strong>Snippet:</strong> {detail.snippet || "-"}
               </p>
-              <section className="rounded-md border bg-slate-950/70 p-3">
+              <section className="rounded-md border border-gray-200 bg-gray-50 p-3 dark:border-gray-700 dark:bg-gray-800/70">
                 <h4 className="mb-2 font-medium">Body Text</h4>
-                <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-200">
+                <pre className="whitespace-pre-wrap break-words text-xs leading-relaxed text-gray-700 dark:text-gray-200">
                   {detail.bodyText || "(empty)"}
                 </pre>
               </section>

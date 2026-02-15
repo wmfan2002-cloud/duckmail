@@ -264,6 +264,16 @@ function MainContent() {
       return
     }
 
+    if (item === "archive") {
+      window.location.href = "/archive"
+      return
+    }
+
+    if (item === "archive-search") {
+      window.location.href = "/archive/search"
+      return
+    }
+
     if (item === "update-notice") {
       setIsUpdateNoticeModalOpen(true)
       return
