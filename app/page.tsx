@@ -20,6 +20,39 @@ import { useHeroUIToast } from "@/hooks/use-heroui-toast"
 import { useIsMobile } from "@/hooks/use-mobile"
 import { Languages, CheckCircle, Navigation, RefreshCw, Menu, AlertCircle } from "lucide-react"
 import { Button } from "@heroui/button"
+import { Input } from "@heroui/input"
+
+type ArchiveMailboxUpsertResponse = {
+  code?: string
+  data?: {
+    id?: number
+    email?: string
+  }
+  error?: string
+}
+
+type ArchiveRunResponse = {
+  code?: string
+  data?: {
+    results?: Array<{
+      status?: "success" | "failed"
+      fetched?: number
+      upserted?: number
+      errorMessage?: string
+    }>
+  }
+  error?: string
+}
+
+async function parseJsonOrThrow<T>(response: Response): Promise<T> {
+  const raw = await response.text()
+  try {
+    return JSON.parse(raw) as T
+  } catch {
+    const snippet = raw.replace(/\s+/g, " ").slice(0, 120)
+    throw new Error(`服务返回了非 JSON 响应：${snippet}`)
+  }
+}
 
 // 生成随机字符串，用于用户名和密码
 function generateRandomString(length: number) {
@@ -57,6 +90,8 @@ function MainContent() {
   const [showAccountBanner, setShowAccountBanner] = useState(false)
   const [createdAccountInfo, setCreatedAccountInfo] = useState<{ email: string; password: string } | null>(null)
   const [isUpdateNoticeModalOpen, setIsUpdateNoticeModalOpen] = useState(false)
+  const [isPersistingCurrentAccount, setIsPersistingCurrentAccount] = useState(false)
+  const [archiveAdminToken, setArchiveAdminToken] = useState("")
 
   // 检测浏览器语言并设置默认语言
   useEffect(() => {
@@ -85,6 +120,13 @@ function MainContent() {
   useEffect(() => {
     document.documentElement.lang = currentLocale === "en" ? "en" : "zh-CN"
   }, [currentLocale])
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return
+    }
+    setArchiveAdminToken(window.localStorage.getItem("archive-admin-token") || "")
+  }, [])
 
   // 检查是否需要显示更新通知（仅显示一次）
   useEffect(() => {
@@ -328,6 +370,105 @@ function MainContent() {
     })
   }
 
+  const handlePersistCurrentAccount = async () => {
+    if (!currentAccount) {
+      return
+    }
+
+    const isZh = currentLocale !== "en"
+    const password = (currentAccount.password || "").trim()
+    if (!password) {
+      toast({
+        title: isZh ? "缺少密码，无法同步" : "Missing password, cannot sync",
+        description: isZh
+          ? "当前账号未保存密码，请重新登录当前账号后再执行持久化同步。"
+          : "This account has no saved password. Re-login this account before running archive sync.",
+        color: "warning",
+        variant: "flat",
+        icon: <AlertCircle size={16} />,
+      })
+      return
+    }
+
+    setIsPersistingCurrentAccount(true)
+    try {
+      const email = currentAccount.address
+      const provider = email.split("@")[1] || "wmxs.cloud"
+
+      const mailboxResponse = await fetch("/api/archive/mailboxes", {
+        method: "POST",
+        headers: {
+          "content-type": "application/json",
+        },
+        body: JSON.stringify({
+          email,
+          password,
+          provider,
+        }),
+      })
+      const mailboxPayload = await parseJsonOrThrow<ArchiveMailboxUpsertResponse>(mailboxResponse)
+      const mailboxId = mailboxPayload.data?.id
+      if (!mailboxResponse.ok || mailboxPayload.code !== "OK" || !mailboxId) {
+        throw new Error(mailboxPayload.error || mailboxPayload.code || (isZh ? "归档邮箱入库失败" : "archive mailbox upsert failed"))
+      }
+
+      const headers: Record<string, string> = {
+        "content-type": "application/json",
+      }
+      const adminToken = archiveAdminToken.trim()
+      if (adminToken) {
+        headers["x-archive-admin-token"] = adminToken
+      }
+
+      const runResponse = await fetch("/api/archive/sync/run", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          mailboxIds: [mailboxId],
+          triggerType: "manual",
+        }),
+      })
+      const runPayload = await parseJsonOrThrow<ArchiveRunResponse>(runResponse)
+      if (!runResponse.ok || runPayload.code !== "OK") {
+        if (runResponse.status === 403) {
+          throw new Error(
+            isZh
+              ? "管理员令牌无效或未配置，请先到 /archive/search 填写管理员令牌"
+              : "Invalid/missing admin token. Configure it first in /archive/search",
+          )
+        }
+        throw new Error(runPayload.error || runPayload.code || (isZh ? "同步执行失败" : "sync run failed"))
+      }
+
+      const singleResult = runPayload.data?.results?.[0]
+      if (singleResult?.status === "failed") {
+        throw new Error(singleResult.errorMessage || (isZh ? "当前账号同步失败" : "current account sync failed"))
+      }
+
+      setHistoryRefreshKey((prev) => prev + 1)
+      toast({
+        title: isZh ? "当前账号持久化同步完成" : "Current account archive sync completed",
+        description: isZh
+          ? `邮箱 ${email} 已同步，抓取 ${singleResult?.fetched ?? 0} 封，入库 ${singleResult?.upserted ?? 0} 封。`
+          : `${email} synced. fetched ${singleResult?.fetched ?? 0}, upserted ${singleResult?.upserted ?? 0}.`,
+        color: "success",
+        variant: "flat",
+        icon: <CheckCircle size={16} />,
+      })
+    } catch (error: any) {
+      const message = error?.message || (currentLocale === "en" ? "Sync failed" : "同步失败")
+      toast({
+        title: currentLocale === "en" ? "Current account sync failed" : "当前账号同步失败",
+        description: message,
+        color: "danger",
+        variant: "flat",
+        icon: <AlertCircle size={16} />,
+      })
+    } finally {
+      setIsPersistingCurrentAccount(false)
+    }
+  }
+
   return (
     <>
       <div className="flex h-screen bg-gray-50 dark:bg-gray-900 text-gray-800 dark:text-gray-100">
@@ -385,6 +526,55 @@ function MainContent() {
           )}
           <main className="flex-1 overflow-y-auto">
             <div className="h-full flex flex-col">
+              {isAuthenticated && currentAccount && (
+                <section className="px-4 pt-4 md:px-6">
+                  <div className="flex flex-col gap-3 rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-800 dark:bg-gray-900 md:flex-row md:items-center md:justify-between">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-gray-700 dark:text-gray-200">
+                        {currentLocale === "en" ? "Archive Current Account" : "持久化当前账号"}
+                      </p>
+                      <p className="truncate text-xs text-gray-500 dark:text-gray-400">
+                        {currentAccount.address}
+                      </p>
+                      {!currentAccount.password ? (
+                        <p className="mt-1 text-xs text-amber-600 dark:text-amber-400">
+                          {currentLocale === "en"
+                            ? "Password not found for this account. Re-login this account first."
+                            : "当前账号缺少密码，请先重新登录当前账号。"}
+                        </p>
+                      ) : null}
+                    </div>
+                    <div className="w-full max-w-md space-y-2">
+                      <Input
+                        type="password"
+                        size="sm"
+                        placeholder={currentLocale === "en" ? "ARCHIVE_ADMIN_TOKEN" : "填写管理员令牌"}
+                        value={archiveAdminToken}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          setArchiveAdminToken(value)
+                          if (typeof window !== "undefined") {
+                            window.localStorage.setItem("archive-admin-token", value)
+                          }
+                        }}
+                        isDisabled={isPersistingCurrentAccount}
+                      />
+                      <Button
+                        color="primary"
+                        variant="flat"
+                        size="sm"
+                        onPress={handlePersistCurrentAccount}
+                        isLoading={isPersistingCurrentAccount}
+                        isDisabled={isPersistingCurrentAccount}
+                        startContent={isPersistingCurrentAccount ? null : <RefreshCw size={16} />}
+                        className="w-full"
+                      >
+                        {currentLocale === "en" ? "Sync Current Account" : "同步当前账号"}
+                      </Button>
+                    </div>
+                  </div>
+                </section>
+              )}
               <div className="flex-1">
                 {isAuthenticated && currentAccount ? (
                   activeMailView === "history" ? (
